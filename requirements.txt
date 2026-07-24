@@ -1,0 +1,5 @@
+# Runtime: zero dependencies (graph + parser are hand-rolled).
+# Dev/lint/test tooling only:
+flake8
+mypy
+pytest

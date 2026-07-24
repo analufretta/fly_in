@@ -1,4 +1,4 @@
-*This project has been created as part of the 42 curriculum by <afretta->*
+*This project has been created as part of the 42 curriculum by afretta-.*
 
 # Fly-in — Drone Routing Simulator
 
@@ -50,29 +50,35 @@ Because the input has no negative edges, potentials are initialised with a singl
 
 **From flow to a turn-by-turn schedule.** MCMF chooses *which* paths carry flow and *how much* each carries (minimising total movement cost). We then decompose the flow into paths and run a greedy **water-filling scheduler** that staggers drone departures across those parallel paths, respecting per-turn zone/connection capacity, to minimise the makespan and avoid deadlocks. The flow solver picks good routes; the scheduler turns routes into the per-turn output log.
 
-### Alternatives considered (and why we passed on them)
+### The two approaches — and why B is the build
 
-| Approach | Model | Why not chosen |
+Both candidates model the problem as single-commodity flow; they differ in whether edge cost is expressed **structurally** (A) or **as a real weight** (B).
+
+| | **A — unit-length max-flow (Edmonds–Karp / BFS)** | **B — min-cost max-flow (Dijkstra + Johnson potentials)** ✅ chosen |
 |---|---|---|
-| **A — unit-length max-flow (Edmonds–Karp / BFS)** | Split the 2-cost restricted move into two unit hops via a dummy node, so *every* edge has length 1 → plain max-flow, no costs, no negatives. Priority = BFS tie-break. | Simplest and provably optimal at small scale, and we keep it as a **reference/fallback** to cross-check the MCMF output on small maps. But it augments essentially one unit at a time and models cost only indirectly, so it does not carry to large-flow / real-cost scenarios. |
-| **Time-expanded max-flow ("flipbook") + binary-search on horizon T** | Copy the graph once per turn; edges point from layer *t* to *t+1*; binary-search the smallest T where max-flow ≥ number of drones. | Gives the **provably optimal makespan** with no separate scheduler, and is genuinely the cleanest answer on small maps. But the graph grows ×T, and both drone count and path length push T up, so it becomes heavy (≈`O(Z·E²·T³)`) on large instances — the exact regime we wanted to stay fast in. |
-| **C — MCMF with SPFA (Bellman–Ford queue)** | Same min-cost flow as our choice, but the inner shortest path uses SPFA instead of Dijkstra+potentials. | Same model, less code, but no potential caching and a worse worst case; dropped in favour of the Dijkstra+potentials variant. |
+| **Model** | Split the 2-cost restricted move into two unit hops via a dummy node, so *every* edge has length 1 → plain max-flow, no costs, no negatives. Priority = BFS tie-break. | Real cost-weighted network: `normal`=1, `priority`=lower, `restricted`=2, `blocked`=removed. Node-split zones enforce capacity. |
+| **Augmentation** | Essentially one unit at a time; cost modelled only indirectly through dummy structure. | Per **path** — each step pushes the whole bottleneck at once; runtime scales with number of augmenting paths, not drone count. |
+| **Reuse** | Recomputes BFS cold each augmentation. | Johnson potentials carry distance info forward across augmentations (reduced cost `c(u,v)+h[u]−h[v] ≥ 0` keeps Dijkstra safe on the residual). |
+| **Costs** | 1-vs-2 only, and awkwardly (dummy nodes); arbitrary weights blow up the structure. | Handles real edge costs directly; extends cleanly to arbitrary weights (tolls, fuel, congestion). |
+| **Status** | **Design contrast only** — *not* implemented, *not* a runtime fallback. | **Implemented.** |
 
-*Reference:* an independent implementation, [robbplo/ft-fly-in](https://github.com/robbplo/ft-fly-in), arrives at the same flow framing via the time-expanded route (node-split zones, transit-node restricted encoding, binary search on T) — useful confirmation of the model, and a concrete illustration of the ×T cost we chose to avoid. By contrast, repos that reached for MAPF/CBS or greedy priority-planning (e.g. `evaristoc/fly-in-school-42`, `krameraad/Fly-in`) run into exactly the model-mismatch and capacity-handling problems the flow framing sidesteps.
+**Why B is the build:** A is simpler and provably optimal on the tiny evaluation maps, but the goal was a solver that stays fast on **large maps with large flows and real edge costs**, not just the eval set. B wins on exactly the axes that matter at scale: per-path augmentation instead of per-drone, potential caching across augmentations, and native handling of the `priority`/`restricted` weights. Because the input has no negative edges, potentials are seeded with a single Dijkstra pass and **Bellman–Ford is never needed**. A stays in this README purely to show the structural-encoding alternative we deliberately did not take.
 
 ---
 
 ## Instructions
 
 ```sh
-make install    # set up the environment / dependencies
-make run        # run on a map
-make debug      # run with verbose / step tracing
-make lint       # flake8 + mypy
-make clean      # remove Python artifacts
+make install                                  # create .venv + install flake8/mypy/pytest
+make run MAP=maps/easy/01_linear_path.txt     # parse+validate a map (MAP defaults to this)
+make debug MAP=<path>                          # same, with verbose dump
+make lint                                      # flake8 + mypy (subject flags)
+make lint-strict                               # mypy --strict
+make test                                      # run the parser unit tests
+make clean                                     # remove caches / bytecode (fclean also drops .venv)
 ```
 
-<!-- TODO: fill in exact run invocation, e.g. `make run MAP=maps/challenger.map` -->
+Runtime has **zero** third-party dependencies (graph and parser are hand-rolled); `make install` only fetches the lint/test tooling.
 
 ---
 
@@ -87,6 +93,5 @@ make clean      # remove Python artifacts
 
 - 42 `lem-in` / network-flow background (single-commodity max-flow, min-cost max-flow, successive shortest paths).
 - Johnson potentials for running Dijkstra on graphs with negative residual back-edges.
-- Surveyed reference implementations: [robbplo/ft-fly-in](https://github.com/robbplo/ft-fly-in), [evaristoc/fly-in-school-42](https://github.com/evaristoc/fly-in-school-42), [krameraad/Fly-in](https://github.com/krameraad/Fly-in).
 
-**How AI was used:** used as a reasoning partner to frame the problem as single-commodity flow (rather than MAPF), to compare candidate algorithms (unit max-flow vs. time-expanded vs. min-cost max-flow), and to weigh their scaling behaviour before committing to min-cost max-flow. All final algorithm choices, code, and implementation are the author's own.
+**How AI was used:** used as a reasoning partner to frame the problem as single-commodity flow (rather than MAPF), to compare the two candidate algorithms (unit max-flow vs. min-cost max-flow), and to weigh their scaling behaviour before committing to min-cost max-flow. All final algorithm choices, code, and implementation are the author's own.
