@@ -11,7 +11,7 @@ class MapError(Exception):
     """Raised when a map file is syntactically or structurally invalid.
 
     Attributes:
-        line_no: 1-based line number in the source file where the error was
+        line_nb: 1-based line number in the source file where the error was
             detected. ``0`` means the error is not tied to a single line
             (e.g. a whole-graph rule such as "no start zone").
         cause: Short human-readable explanation of what is wrong.
@@ -19,19 +19,21 @@ class MapError(Exception):
             printed message).
     """
 
-    def __init__(self, line_no: int, cause: str, raw: str = "") -> None:
+    def __init__(self, line_nb: int, cause: str, raw: str = "") -> None:
         """Store the context and build the formatted error message.
 
         Args:
-            line_no: 1-based source line number (``0`` if not line-specific).
+            line_nb: 1-based source line number (``0`` if not line-specific).
             cause: Human-readable reason the map is invalid.
             raw: The original source line text, optional.
         """
-        # PSEUDOCODE:
-        # - keep line_no, cause, raw on self so callers can inspect them
-        # - compose message:
-        #     if line_no > 0:  "map error on line {line_no}: {cause}"
-        #     else:            "map error: {cause}"
-        #   append "  ->  {raw.strip()}" when raw is non-empty
-        # - call super().__init__(message)
-        raise NotImplementedError
+        self.line_nb = line_nb
+        self.cause = cause
+        self.raw = raw
+        if line_nb > 0:
+            msg = f"[MAP ERROR] line {line_nb}: {cause}"
+        else:
+            msg = f"[MAP ERROR] {cause}"
+        if raw:
+            msg += f" -> {raw.strip()}"
+        super().__init__(msg)
