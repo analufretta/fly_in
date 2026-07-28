@@ -8,11 +8,12 @@ those into ``MapError`` with the line number.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import Enum, auto
 
 from connection import Connection
-from zone import Zone
+from zone import Zone, ZoneType
 
 
 class LineKind(Enum):
@@ -41,17 +42,22 @@ class Tokenizer:
         Returns:
             The matching ``LineKind``; ``UNKNOWN`` for anything unrecognized.
         """
-        # PSEUDOCODE:
-        # - stripped = line.strip()
-        # - "" -> BLANK
-        # - startswith "#" -> COMMENT
-        # - startswith "nb_drones:" -> DRONE_COUNT
-        # - startswith "start_hub:" -> START_HUB
-        # - startswith "end_hub:" -> END_HUB
-        # - startswith "hub:" -> HUB
-        # - startswith "connection:" -> CONNECTION
-        # - else -> UNKNOWN
-        raise NotImplementedError
+        stripped = line.strip()
+        if not stripped:
+            return LineKind.BLANK
+        if stripped.startswith("#"):
+            return LineKind.COMMENT
+        if stripped.startswith("nb_drones:"):
+            return LineKind.DRONE_COUNT
+        if stripped.startswith("start_hub:"):
+            return LineKind.START_HUB
+        if stripped.startswith("end_hub:"):
+            return LineKind.END_HUB
+        if stripped.startswith("hub:"):
+            return LineKind.HUB
+        if stripped.startswith("connection:"):
+            return LineKind.CONNECTION
+        return LineKind.UNKNOWN
 
     def parse_drone_count(self, line: str) -> int:
         """Parse a ``nb_drones: N`` line.
@@ -65,11 +71,11 @@ class Tokenizer:
         Raises:
             ValueError: If the value is missing or not a positive integer.
         """
-        # PSEUDOCODE:
-        # - split on ':' once, take the right side, strip
-        # - int() it (ValueError bubbles if non-numeric)
-        # - require > 0 else raise ValueError("nb_drones must be positive")
-        raise NotImplementedError
+        value = line.split(":", 1)[1].strip()
+        count = int(value)
+        if count <= 0:
+            raise ValueError("nb_drones must be positive")
+        return count
 
     def parse_zone(self, line: str, is_start: bool, is_end: bool) -> Zone:
         """Parse a hub line into a ``Zone``.
@@ -88,18 +94,27 @@ class Tokenizer:
         Raises:
             ValueError: On malformed name/coordinates/metadata.
         """
-        # PSEUDOCODE:
-        # - drop the prefix up to and including ':'
-        # - split remainder; separate the optional "[...]" metadata block from
-        #   the "name x y" head (metadata is whatever is inside brackets)
-        # - head tokens -> name, x, y  (require exactly 3; int() the coords)
-        # - meta = self._parse_metadata(bracket_text)
-        # - zone_type = ZoneType.from_str(meta.get("zone", "normal"))
-        # - color = meta.get("color")  (None if absent)
-        # - max_drones = int(meta.get("max_drones", "1"))
-        # - build and return Zone(name, x, y, zone_type, color, max_drones,
-        #                          is_start, is_end)
-        raise NotImplementedError
+        values = line.split(":", 1)[1].strip()
+
+        # Groups: 1=name (no dash/space), 2=x, 3=y, 4=optional [meta].
+        # Anchored ^...$ so trailing junk fails the match.
+        pattern = r"^([^-\s]+)\s+(\S+)\s+(\S+)(?:\s+\[([^\]]+)\])?\s*$"
+        matched = re.match(pattern, values)
+        if not matched:
+            raise ValueError(f"invalid format for zone line: {line!r}")
+
+        name, x_str, y_str, bracket = matched.groups()
+        metadata = self._parse_metadata(bracket or "")
+        return Zone(
+            name,
+            int(x_str),
+            int(y_str),
+            ZoneType.from_str(metadata.get("zone", "normal")),
+            metadata.get("color"),
+            int(metadata.get("max_drones", "1")),
+            is_start,
+            is_end,
+        )
 
     def parse_connection(self, line: str) -> Connection:
         """Parse a ``connection: a-b [max_link_capacity=N]`` line.
@@ -113,14 +128,17 @@ class Tokenizer:
         Raises:
             ValueError: On a malformed endpoint pair or capacity.
         """
-        # PSEUDOCODE:
-        # - drop prefix up to ':'
-        # - separate optional "[...]" metadata from the "a-b" head
-        # - split head on '-' -> exactly two names (reject 0 or >1 dash)
-        # - meta = self._parse_metadata(bracket_text)
-        # - cap = int(meta.get("max_link_capacity", "1"))
-        # - return Connection(name1, name2, cap)
-        raise NotImplementedError
+        values = line.split(":", 1)[1].strip()
+        # Groups: 1=zone_a, 2=zone_b (exactly one '-' between, no dash/space
+        # in names), 3=optional [meta].
+        pattern = r"^([^-\s]+)-([^-\s]+)(?:\s+\[([^\]]+)\])?\s*$"
+        matched = re.match(pattern, values)
+        if not matched:
+            raise ValueError(f"invalid format for connection line: {line!r}")
+        name_a, name_b, bracket = matched.groups()
+        metadata = self._parse_metadata(bracket or "")
+        cap = int(metadata.get("max_link_capacity", "1"))
+        return Connection(name_a, name_b, cap)
 
     def _parse_metadata(self, bracket: str) -> dict[str, str]:
         """Parse the optional ``[key=value ...]`` block, order-independent.
@@ -135,11 +153,19 @@ class Tokenizer:
             ValueError: On a malformed token (missing '=', unknown key, or a
                 duplicate key).
         """
-        # PSEUDOCODE:
-        # - if bracket is empty/whitespace -> return {}
-        # - split on whitespace into tokens
-        # - for each token: split once on '=' -> (key, value); no '=' is an error
-        # - reject unknown keys (allowed: zone, color, max_drones,
-        #   max_link_capacity) and duplicate keys within one block
-        # - return the accumulated dict
-        raise NotImplementedError
+        meta: dict[str, str] = {}
+        allowed = {"zone", "color", "max_drones", "max_link_capacity"}
+
+        if not bracket.strip():
+            return meta
+
+        for token in bracket.split():
+            if "=" not in token:
+                raise ValueError(f"metadata token missing '=': {token!r}")
+            key, value = token.split("=", 1)
+            if key not in allowed:
+                raise ValueError(f"unknown metadata key: {key!r}")
+            if key in meta:
+                raise ValueError(f"duplicate metadata key: {key!r}")
+            meta[key] = value
+        return meta

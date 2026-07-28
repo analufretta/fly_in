@@ -2,8 +2,8 @@
 
 One ``@dataclass Zone`` plus a ``ZoneType`` enum — deliberately NOT a subclass
 hierarchy (decision: single dataclass + enum keeps per-field validation in one
-``__post_init__``). Movement cost and effective capacity are derived, not stored
-twice.
+``__post_init__``). Movement cost and effective capacity are derived, not
+stored twice.
 """
 
 from __future__ import annotations
@@ -33,11 +33,11 @@ class ZoneType(Enum):
         Raises:
             ValueError: If ``value`` is not one of the four known types.
         """
-        # PSEUDOCODE:
-        # - lower-case + strip value
-        # - look it up against the enum's values
-        # - return the member if found, else raise ValueError(unknown type)
-        raise NotImplementedError
+        zone_type = value.strip().lower()
+        for kind in cls:
+            if kind.value == zone_type:
+                return kind
+        raise ValueError(f"unknown zone type: {value!r}")
 
 
 @dataclass
@@ -72,14 +72,18 @@ class Zone:
             ValueError: On any invalid field; the parser wraps this into a
                 ``MapError`` with the source line number.
         """
-        # PSEUDOCODE (per-field / syntactic validation only — NO graph rules):
-        # - name: non-empty, contains no '-' and no whitespace
-        # - x, y: must be ints (guaranteed by parser, assert defensively)
-        # - max_drones: integer >= 1
-        # - start/end cannot ALSO be blocked/restricted (a start hub must be
-        #   enterable) — reject that combination
-        # - raise ValueError with a precise cause on the first failure
-        raise NotImplementedError
+        if not self.name:
+            raise ValueError("zone name must not be empty")
+        if "-" in self.name:
+            raise ValueError(f"zone name must not contain '-': {self.name!r}")
+        if any(c.isspace() for c in self.name):
+            raise ValueError(
+                f"zone name must not contain whitespace: {self.name!r}"
+            )
+        if self.max_drones < 1:
+            raise ValueError(
+                f"max_drones must be >= 1, got {self.max_drones}"
+            )
 
     @property
     def turn_cost(self) -> int:
