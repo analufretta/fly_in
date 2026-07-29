@@ -118,6 +118,17 @@ make clean                                     # remove caches / bytecode (fclea
 
 Runtime has **zero** third-party dependencies (graph and parser are hand-rolled); `make install` only fetches the lint/test tooling.
 
+### Error reporting
+
+Any malformed map **stops the program** with a single clear message on `stderr` and a non-zero exit code (`1`) — never a raw traceback. Line-specific problems name the offending 1-based line and the cause; whole-map problems (e.g. a missing `nb_drones`, or no start/end zone) omit the line:
+
+```text
+[ERROR] line 7: invalid zone name: 'a b'
+[ERROR] map has no start zone
+```
+
+This satisfies the subject's rule that a parsing error must halt and report the line and cause.
+
 ---
 
 ## Visual representation

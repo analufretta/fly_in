@@ -19,7 +19,7 @@ class MapError(Exception):
             printed message).
     """
 
-    def __init__(self, line_nb: int, cause: str, raw: str = "") -> None:
+    def __init__(self, line_nb: int, cause: str, raw_line: str = "") -> None:
         """Store the context and build the formatted error message.
 
         Args:
@@ -29,11 +29,11 @@ class MapError(Exception):
         """
         self.line_nb = line_nb
         self.cause = cause
-        self.raw = raw
+        self.raw = raw_line
         if line_nb > 0:
-            msg = f"[MAP ERROR] line {line_nb}: {cause}"
+            msg = f"[ERROR] line {line_nb}: {cause}"
         else:
-            msg = f"[MAP ERROR] {cause}"
-        if raw:
-            msg += f" -> {raw.strip()}"
+            msg = f"[ERROR] {cause}"
+        if raw_line:
+            msg += f" -> {raw_line.strip()}"
         super().__init__(msg)
