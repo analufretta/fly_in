@@ -65,6 +65,26 @@ class Zone:
     is_start: bool = False
     is_end: bool = False
 
+    @staticmethod
+    def is_valid_name(name: str) -> bool:
+        """Whether a string is a legal zone name.
+
+        Zone owns this rule (a name is non-empty, has no ``-`` and no
+        whitespace). ``Connection`` reuses it to validate endpoint names so the
+        definition lives in exactly one place.
+
+        Args:
+            name: Candidate zone name.
+
+        Returns:
+            True if ``name`` is non-empty and free of dashes and whitespace.
+        """
+        return (
+            bool(name)
+            and "-" not in name
+            and not any(c.isspace() for c in name)
+        )
+
     def __post_init__(self) -> None:
         """Validate a single zone's fields (per-line rules).
 
@@ -72,14 +92,8 @@ class Zone:
             ValueError: On any invalid field; the parser wraps this into a
                 ``MapError`` with the source line number.
         """
-        if not self.name:
-            raise ValueError("zone name must not be empty")
-        if "-" in self.name:
-            raise ValueError(f"zone name must not contain '-': {self.name!r}")
-        if any(c.isspace() for c in self.name):
-            raise ValueError(
-                f"zone name must not contain whitespace: {self.name!r}"
-            )
+        if not Zone.is_valid_name(self.name):
+            raise ValueError(f"invalid zone name: {self.name!r}")
         if self.max_drones < 1:
             raise ValueError(
                 f"max_drones must be >= 1, got {self.max_drones}"

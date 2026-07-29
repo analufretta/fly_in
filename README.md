@@ -66,6 +66,44 @@ Both candidates model the problem as single-commodity flow; they differ in wheth
 
 ---
 
+## Architecture & data flow
+
+The program is a **pipeline that narrows trust**: raw bytes → lines → isolated typed objects → a validated graph → a solution. Each stage hands the next a *more-trusted* value, so by the time the solver runs it never re-validates input — this is the "**parse, don't validate**" principle spread across files.
+
+**Runtime call chain** (root → leaf):
+
+```
+main.py            thin entry: safe file I/O, then parse → solve → print
+  └─ parser.py     orchestrator: owns line numbers; wraps ValueError into
+                   MapError(line, cause); assembles the DroneMap
+       └─ tokenizer.py   one raw line → one typed record (classify + parse_*)
+            └─ zone.py / connection.py   data objects; self-validate in
+                                         __post_init__
+  └─ drone_map.py  whole-map container: adjacency + graph validation
+       └─ (solver / MCMF)   routes + turn-by-turn schedule → output log
+```
+
+**Layer responsibilities:**
+
+| File | Role |
+|---|---|
+| `main.py` | Thin entry point. Opens the map file with a context manager (no crash), kicks off parse + solve, prints the per-turn log. |
+| `parser.py` | Orchestrator. Walks lines, tracks the line number, and is the **only** place that turns a raw `ValueError` into a `MapError(line, cause)`. Assembles and returns a `DroneMap`. |
+| `tokenizer.py` | Pure line-level translator: one string → one typed record. Knows nothing about line numbers or other lines. |
+| `zone.py` / `connection.py` | Self-validating data objects. Each checks only its own fields, at construction. |
+| `drone_map.py` | Whole-map container. Only layer that sees every object at once → owns graph rules (endpoint existence, duplicate edges via `Connection.key`, exactly one start / one end, connectivity) plus adjacency. |
+| `errors.py` | `MapError(line, cause)` — the single error type surfaced to the user. |
+
+**Three validation scopes.** Every rule lives in exactly one scope, chosen by *how much you must know to check it*:
+
+1. **Line syntax** — tokenizer / regex. "Can I split this one line into fields?"
+2. **One object** — `__post_init__`. "Are this object's own fields sane, regardless of who built it?" (non-empty, no self-loop, capacity ≥ 1, valid name shape).
+3. **Whole graph** — `DroneMap.validate`. "Do all objects together form a valid map?" (endpoints exist, no duplicate edges, one start/one end, connectivity).
+
+A name-shape rule (no dash/whitespace) has a single owner, `Zone.is_valid_name`, reused by `Connection` so the definition never drifts.
+
+---
+
 ## Instructions
 
 ```sh

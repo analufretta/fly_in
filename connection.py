@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from zone import Zone
+
 
 @dataclass
 class Connection:
@@ -14,7 +16,7 @@ class Connection:
     Attributes:
         zone_a: Name of one endpoint.
         zone_b: Name of the other endpoint.
-        max_link_capacity: Max drones traversing this link per turn (default 1).
+        max_link_capacity: Max drones crossing this link per turn (default 1).
     """
 
     zone_a: str
@@ -24,15 +26,20 @@ class Connection:
     def __post_init__(self) -> None:
         """Validate a single connection's fields (per-line rules).
 
+        Endpoint *shape* is delegated to ``Zone.is_valid_name`` so the name
+        rule has one owner. Endpoint *existence* is a graph rule, checked later
+        in ``DroneMap.validate``.
+
         Raises:
             ValueError: On invalid fields; wrapped into ``MapError`` upstream.
         """
-        # PSEUDOCODE (per-field only):
-        # - zone_a and zone_b non-empty
-        # - self-loop check: zone_a != zone_b (a connection to itself is invalid)
-        # - max_link_capacity: integer >= 1
-        # (endpoint-EXISTS is a graph rule -> DroneMap.validate, not here)
-        raise NotImplementedError
+        for endpoint in (self.zone_a, self.zone_b):
+            if not Zone.is_valid_name(endpoint):
+                raise ValueError(f"invalid connection endpoint: {endpoint!r}")
+        if self.zone_a == self.zone_b:
+            raise ValueError(f"self-loop connection: {self.zone_a!r}")
+        if self.max_link_capacity < 1:
+            raise ValueError("connection capacity must be a positive integer")
 
     @property
     def key(self) -> frozenset[str]:
@@ -41,8 +48,7 @@ class Connection:
         Returns:
             ``frozenset({zone_a, zone_b})`` so ``a-b`` == ``b-a``.
         """
-        # PSEUDOCODE: return frozenset({zone_a, zone_b})
-        raise NotImplementedError
+        return frozenset({self.zone_a, self.zone_b})
 
     def other(self, name: str) -> str:
         """Return the endpoint opposite ``name``.
@@ -56,8 +62,9 @@ class Connection:
         Raises:
             ValueError: If ``name`` is not an endpoint of this connection.
         """
-        # PSEUDOCODE:
-        # - if name == zone_a -> return zone_b
-        # - if name == zone_b -> return zone_a
-        # - else raise ValueError (name not on this connection)
-        raise NotImplementedError
+        if name == self.zone_a:
+            return self.zone_b
+        elif name == self.zone_b:
+            return self.zone_a
+        else:
+            raise ValueError(f"{name!r} is not in this connection")
