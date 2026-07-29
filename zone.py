@@ -106,24 +106,21 @@ class Zone:
         Returns:
             ``1`` for normal/priority, ``2`` for restricted.
         """
-        # PSEUDOCODE:
-        # - restricted -> 2
-        # - normal / priority -> 1
-        # - blocked -> undefined for traversal; callers must exclude it first
-        raise NotImplementedError
+        if self.zone_type is ZoneType.RESTRICTED:
+            return 2
+        return 1
 
     @property
-    def capacity(self) -> int:
+    def capacity(self) -> int | None:
         """Effective per-turn occupancy limit.
 
         Returns:
-            A very large number (treated as unlimited) for start/end zones,
-            otherwise ``max_drones``.
+            ``None`` for start/end zones (unlimited — the solver imposes no
+            capacity edge there), otherwise ``max_drones``.
         """
-        # PSEUDOCODE:
-        # - if is_start or is_end -> return "unlimited" sentinel (large int)
-        # - else -> return max_drones
-        raise NotImplementedError
+        if self.is_start or self.is_end:
+            return None
+        return self.max_drones
 
     @property
     def is_passable(self) -> bool:
@@ -132,5 +129,4 @@ class Zone:
         Returns:
             False for blocked zones, True otherwise.
         """
-        # PSEUDOCODE: return zone_type is not BLOCKED
-        raise NotImplementedError
+        return self.zone_type is not ZoneType.BLOCKED
