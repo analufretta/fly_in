@@ -18,8 +18,7 @@ class MapParser:
 
     def __init__(self) -> None:
         """Set up the tokenizer used for every line."""
-        # PSEUDOCODE: self._tok = Tokenizer()
-        raise NotImplementedError
+        self._tok = Tokenizer()
 
     def parse(self, path: str) -> DroneMap:
         """Read and fully validate a map file.
@@ -34,28 +33,40 @@ class MapParser:
             MapError: On any I/O failure or invalid syntax/structure. This is
                 the ONLY exception type callers need to handle — no raw crash.
         """
-        # PSEUDOCODE:
-        # - lines = self._read_lines(path)          # context-managed I/O
-        # - drone_map: DroneMap | None = None
-        # - for line_no, raw in enumerate(lines, start=1):
-        #       kind = tok.classify(raw)
-        #       skip BLANK and COMMENT
-        #       try:
-        #           dispatch on kind:
-        #             DRONE_COUNT -> build DroneMap(nb_drones); guard against a
-        #                            second nb_drones line
-        #             START_HUB   -> map.add_zone(tok.parse_zone(raw, start=True,...))
-        #             END_HUB     -> map.add_zone(tok.parse_zone(raw, ..., end=True))
-        #             HUB         -> map.add_zone(tok.parse_zone(raw, False, False))
-        #             CONNECTION  -> map.add_connection(tok.parse_connection(raw))
-        #             UNKNOWN     -> raise ValueError("unrecognized line")
-        #           (adding a zone/connection before nb_drones seen -> error)
-        #       except ValueError as exc:
-        #           raise MapError(line_no, str(exc), raw) from exc
-        # - if drone_map is None -> MapError(0, "missing nb_drones")
-        # - drone_map.validate()                    # graph-level pass
-        # - return drone_map
-        raise NotImplementedError
+        lines = self._read_lines(path)
+        drone_map: DroneMap | None = None
+        for line_nb, raw_line in enumerate(lines, start=1):
+            kind = self._tok.classify(raw_line)
+            if kind in (LineKind.BLANK, LineKind.COMMENT):
+                continue
+            try:
+                if kind is LineKind.DRONE_COUNT:
+                    if drone_map is not None:
+                        raise ValueError("duplicate nb_drones")
+                    drone_map = DroneMap(self._tok.parse_drone_count(raw_line))
+                else:
+                    if drone_map is None:
+                        raise ValueError("content before nb_drones")
+                    if kind is LineKind.START_HUB:
+                        zone = self._tok.parse_zone(raw_line, True, False)
+                        drone_map.add_zone(zone, line_nb)
+                    elif kind is LineKind.END_HUB:
+                        zone = self._tok.parse_zone(raw_line, False, True)
+                        drone_map.add_zone(zone, line_nb)
+                    elif kind is LineKind.HUB:
+                        zone = self._tok.parse_zone(raw_line, False, False)
+                        drone_map.add_zone(zone, line_nb)
+                    elif kind is LineKind.CONNECTION:
+                        conn = self._tok.parse_connection(raw_line)
+                        drone_map.add_connection(conn, line_nb)
+                    else:
+                        raise ValueError("unrecognized line")
+            except ValueError as exc:
+                raise MapError(line_nb, str(exc)) from exc
+        if drone_map is None:
+            raise MapError(0, "missing nb_drones")
+        drone_map.validate()
+        return drone_map
 
     def _read_lines(self, path: str) -> list[str]:
         """Read all lines from ``path`` using a context manager.
@@ -69,10 +80,8 @@ class MapParser:
         Raises:
             MapError: If the file cannot be opened or read.
         """
-        # PSEUDOCODE:
-        # - try:
-        #       with open(path, "r", encoding="utf-8") as fh:
-        #           return fh.read().splitlines()
-        #   except OSError as exc:
-        #       raise MapError(0, f"cannot read file: {exc}") from exc
-        raise NotImplementedError
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                return fh.read().splitlines()
+        except OSError as exc:
+            raise MapError(0, f"cannot read file: {exc}") from exc

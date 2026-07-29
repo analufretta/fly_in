@@ -9,7 +9,6 @@ those into ``MapError`` with the line number.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 from enum import Enum, auto
 
 from connection import Connection
@@ -29,7 +28,6 @@ class LineKind(Enum):
     UNKNOWN = auto()
 
 
-@dataclass
 class Tokenizer:
     """Stateless helper that turns one line into a typed record."""
 
