@@ -37,3 +37,24 @@ class MapError(Exception):
         if raw_line:
             msg += f" -> {raw_line.strip()}"
         super().__init__(msg)
+
+
+class SolveError(Exception):
+    """Raised when a valid map cannot be solved (e.g. end unreachable).
+
+    Distinct from ``MapError``: the map parsed and validated fine, but the
+    solver cannot route drones start -> end. Reachability is a solver concern,
+    not a map-validity rule (see the parsing-choice decision).
+
+    Attributes:
+        cause: Short human-readable explanation of why solving failed.
+    """
+
+    def __init__(self, cause: str) -> None:
+        """Store the cause and build the ``[ERROR]``-prefixed message.
+
+        Args:
+            cause: Human-readable reason the map cannot be solved.
+        """
+        self.cause = cause
+        super().__init__(f"[ERROR] {cause}")
