@@ -64,6 +64,45 @@ Both candidates model the problem as single-commodity flow; they differ in wheth
 
 **Why B is the build:** A is simpler and provably optimal on the tiny evaluation maps, but the goal was a solver that stays fast on **large maps with large flows and real edge costs**, not just the eval set. B wins on exactly the axes that matter at scale: per-path augmentation instead of per-drone, potential caching across augmentations, and native handling of the `priority`/`restricted` weights. Because the input has no negative edges, potentials are seeded with a single Dijkstra pass and **Bellman–Ford is never needed**. A stays in this README purely to show the structural-encoding alternative we deliberately did not take.
 
+### Phase 2 building block — single-drone shortest path (`pathfinder.py`, implemented)
+
+Before the multi-drone flow solver, `PathFinder` computes the fewest-turn route for **one** drone with a hand-rolled **Dijkstra** (no graph libraries). This is the primitive the MCMF inner loop reuses; on its own it also answers "what is the optimal path for a single drone, and is the end reachable at all?".
+
+**Cost model.** A path's cost is the sum of the `turn_cost` of each zone *entered* — the start zone is free (the drone begins there). `normal`/`priority` cost 1 turn, `restricted` costs 2 (its two-turn traversal expressed directly as weight). This sum is the single drone's makespan.
+
+**Lexicographic key `(turns, penalty)`.** Priority zones must be *preferred* without ever inflating the turn count, so cost is a pair, not a scalar:
+
+- `turns` — the real makespan. **Primary** key.
+- `penalty` — `0` for a priority zone, `1` otherwise. So `penalty` accumulates the count of *non-priority* zones entered.
+
+Python compares tuples lexicographically: `turns` decides first, and `penalty` is consulted **only** when `turns` ties. A slower-but-priority route can therefore never beat a faster one (`(2, 5) < (3, 0)` because `2 < 3`); among equal-turn routes, the one crossing more priority zones wins (`(3, 1) < (3, 3)`). Priority is a tie-break, never an override — matching the subject's "should be preferred" against a turns-based score.
+
+**Blocked zones.** Skipped during relaxation via `zone.is_passable`, so no route can ever enter one.
+
+**Min-heap frontier with lazy deletion.** The frontier is a `heapq` min-heap of `(turns, penalty, name)`; `heappop` always returns the cheapest pending zone. We never *remove* superseded entries — when a cheaper route to a zone is found we simply push a new entry, leaving the stale one buried. Each pop is guarded:
+
+```python
+if (turns, penalty) > best[name]:
+    continue   # stale: this zone was already settled via a cheaper route
+```
+
+`best[name]` holds the true cheapest cost known; a popped entry worse than that is an outdated duplicate and is discarded. This is cheaper than searching the heap to delete stale entries.
+
+**Back-pointer reconstruction.** A `prev[name]` map records the predecessor on the best route to each zone, updated **in lock-step with `best`** (both are written in the same relaxation branch, so they never disagree). Once the end zone pops non-stale, Dijkstra's settle guarantee makes its whole `prev` chain final. `_reconstruct` walks `prev` backward from `end` to `start` and reverses the result. The walk is guaranteed to terminate: entering any zone costs ≥ 1 turn, so `turns` strictly *decreases* along the backward chain — it cannot cycle and must bottom out at `start` (the only zone with no `prev`, cost `0`). If the end never received a cost, it is unreachable and `shortest_path` returns `None` (surfaced as a `SolveError`).
+
+**Worked example (why stale entries and the guard matter).** Take the graph `S→X=1`, `S→Y=2`, `X→C=5`, `Y→C=1`, `C→Z=10`, with `start=S`, `end=Z` (single scalar costs, to isolate the mechanic):
+
+| Loop | pop | action | `best[C]` / `prev[C]` | heap after |
+|---|---|---|---|---|
+| 1 | `(0,S)` | relax X→1, Y→2 | — | `(1,X) (2,Y)` |
+| 2 | `(1,X)` | relax C via X = **6** | `6` / `X` | `(2,Y) (6,C)` |
+| 3 | `(2,Y)` | relax C via Y = **3** < 6 → overwrite | `3` / **`Y`** | `(3,C) (6,C)` ← C twice |
+| 4 | `(3,C)` | relax Z = 13 | — | `(6,C) (13,Z)` |
+| 5 | `(6,C)` | `6 > best[C]=3` → **stale, skip** | — | `(13,Z)` |
+| 6 | `(13,Z)` | `Z == end` → **break** | — | — |
+
+`C` is pushed **twice**; `prev[C]` flips `X → Y` when the cheaper route appears; the leftover `(6,C)` is discarded by the guard in loop 5. Reconstruction walks `Z → C → Y → S` and reverses it → **`[S, Y, C, Z]`**. Note the final route goes through `Y` even though `X` was cheaper to reach first — because `Y`'s route to the goal is cheaper overall, which is exactly the trap a greedy "take the nearest neighbour" would fall into and Dijkstra does not.
+
 ---
 
 ## Architecture & data flow
