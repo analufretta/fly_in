@@ -33,14 +33,12 @@ class Drone:
             drone_id: Unique 1-based id.
             path: Route from start to end (inclusive), from the pathfinder.
         """
-        # self.id = drone_id
-        # self.path = path
-        # cursor state:
-        #   self._pos = 0            index in path of current confirmed zone
-        #   self._in_flight = False  True while crossing to a restricted zone
-        #   self._fly_dest = None    path index being flown toward, if in flight
-        #   self._delivered = False  True once the end zone is reached
-        raise NotImplementedError
+        self.id: int = drone_id
+        self.path: list[str] = path
+        self._pos: int = 0
+        self._in_flight: bool = False
+        self._flight_dest: int | None = None
+        self._delivered: bool = False
 
     @property
     def is_delivered(self) -> bool:
@@ -49,8 +47,7 @@ class Drone:
         Returns:
             True once delivered (drops out of the simulation).
         """
-        # return self._delivered
-        raise NotImplementedError
+        return self._delivered
 
     def step(self, drone_map: DroneMap) -> str | None:
         """Advance the drone by exactly one turn and report its move.
@@ -63,27 +60,32 @@ class Drone:
             ``D<id>-<src>-<dst>`` while in flight to a restricted zone), or
             ``None`` if the drone is already delivered / does not move.
         """
-        # if self._delivered: return None
-        #
-        # if self._in_flight:                       # arriving from a link
-        #     self._pos = self._fly_dest
-        #     self._in_flight = False; self._fly_dest = None
-        #     dest = self.path[self._pos]
-        #     if dest == end: self._delivered = True
-        #     return f"D{id}-{dest}"
-        #
-        # nxt = self._pos + 1
-        # if nxt >= len(self.path):                 # nothing left to do
-        #     self._delivered = True; return None
-        #
-        # dest_name = self.path[nxt]
-        # dest_zone = drone_map.zones[dest_name]
-        # if dest_zone.turn_cost == 2:              # restricted -> go in flight
-        #     self._in_flight = True; self._fly_dest = nxt
-        #     src = self.path[self._pos]
-        #     return f"D{id}-{src}-{dest_name}"     # connection token
-        # else:                                     # normal/priority 1-turn hop
-        #     self._pos = nxt
-        #     if dest_name == end: self._delivered = True
-        #     return f"D{id}-{dest_name}"
-        raise NotImplementedError
+        if self._delivered:
+            return None
+        if self._in_flight:
+            assert self._flight_dest is not None
+            self._pos = self._flight_dest
+            self._in_flight = False
+            self._flight_dest = None
+            dest_name = self.path[self._pos]
+            if drone_map.zones[dest_name].is_end:
+                self._delivered = True
+            return f"D{self.id}-{dest_name}"
+
+        nxt = self._pos + 1
+        if nxt >= len(self.path):
+            self._delivered = True
+            return None
+
+        dest_name = self.path[nxt]
+        dest_zone = drone_map.zones[dest_name]
+        if dest_zone.turn_cost == 2:
+            self._in_flight = True
+            self._flight_dest = nxt
+            src = self.path[self._pos]
+            return f"D{self.id}-{src}-{dest_name}"
+        else:
+            self._pos = nxt
+            if dest_zone.is_end:
+                self._delivered = True
+            return f"D{self.id}-{dest_name}"
