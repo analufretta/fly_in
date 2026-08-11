@@ -1,7 +1,5 @@
 """Turn-by-turn simulation loop (Phase 2, single drone).
 
-SCAFFOLD ONLY — signatures + pseudocode. Bodies not implemented yet.
-
 The ``Simulation`` drives a set of drones one turn at a time: each turn it asks
 every not-yet-delivered drone to ``step`` and collects their move tokens into a
 single space-separated output line. It stops when all drones are delivered.
@@ -27,25 +25,8 @@ class Simulation:
             drone_map: The validated map the drones move across.
             drones: Drones to deliver, each carrying its own route.
         """
-        # self._map = drone_map
-        # self._drones = drones
-        raise NotImplementedError
-
-    @classmethod
-    def single_drone(
-        cls, drone_map: DroneMap, path: list[str]
-    ) -> "Simulation":
-        """Build a one-drone simulation from a computed path.
-
-        Args:
-            drone_map: The validated map.
-            path: Route ``[start, ..., end]`` for the single drone (``D1``).
-
-        Returns:
-            A ``Simulation`` holding one ``Drone`` (id ``1``) on ``path``.
-        """
-        # return cls(drone_map, [Drone(1, path)])
-        raise NotImplementedError
+        self._map: DroneMap = drone_map
+        self._drones: list[Drone] = drones
 
     def run(self) -> list[str]:
         """Run the simulation to completion.
@@ -60,13 +41,14 @@ class Simulation:
                 undelivered (a stuck schedule — should be impossible for a
                 single drone on a valid path; a safety guard).
         """
-        # lines: list[str] = []
-        # while any drone not delivered:
-        #     tokens = [t for d in self._drones
-        #                 if (t := d.step(self._map)) is not None]
-        #     if not tokens and undelivered remain:
-        #         raise SolveError("simulation stalled: no drone can move")
-        #     if tokens:
-        #         lines.append(" ".join(tokens))
-        # return lines
-        raise NotImplementedError
+        lines: list[str] = []
+        while not all(d.is_delivered for d in self._drones):
+            line = []
+            for d in self._drones:
+                if (turn := d.step(self._map)) is not None:
+                    line.append(turn)
+            if line:
+                lines.append(" ".join(line))
+            else:
+                raise SolveError("simulation stalled: no drone can move")
+        return lines
