@@ -103,6 +103,40 @@ if (turns, penalty) > best[name]:
 
 `C` is pushed **twice**; `prev[C]` flips `X → Y` when the cheaper route appears; the leftover `(6,C)` is discarded by the guard in loop 5. Reconstruction walks `Z → C → Y → S` and reverses it → **`[S, Y, C, Z]`**. Note the final route goes through `Y` even though `X` was cheaper to reach first — because `Y`'s route to the goal is cheaper overall, which is exactly the trap a greedy "take the nearest neighbour" would fall into and Dijkstra does not.
 
+### Phase 2 execution — turning a route into a per-turn log (`drone.py`, `simulation.py`)
+
+`PathFinder` answers *where* a drone goes; `Drone` and `Simulation` answer *when*. A route is a static list of zone names, but the output is a **timeline** — one line per simulation turn — so the route has to be replayed step by step.
+
+**`Drone` — a playback cursor.** Each drone holds its route plus a small amount of turn state (`_pos`, `_in_flight`, `_flight_dest`, `_delivered`). Its `step()` advances the drone by exactly one turn and returns that turn's move token, or `None` if it has nothing to do. Keeping the cursor on the drone (not the loop) is deliberate: Phase 3 drives a whole fleet with the same `step()` contract.
+
+**The restricted zone's two-turn transit** is the one subtle case, and it is why a drone needs an in-flight state rather than a single position:
+
+- **Turn 1 — departure.** Entering a restricted zone costs 2 turns, so the drone spends the first turn *on the connection*. It sets `_in_flight = True`, records the index it is heading for in `_flight_dest`, and emits the connection token `D<id>-<src>-<dst>`. It is **not** counted as inside the zone this turn.
+- **Turn 2 — arrival.** `step()` sees `_in_flight`, lands the drone on `_flight_dest`, clears the flag, and emits `D<id>-<dst>`.
+
+`_flight_dest` exists precisely because `step()` has no memory between calls except what lives on the drone: turn 2 must recover the destination that turn 1 decided.
+
+**`Simulation` — the clock.** `run()` loops until every drone is delivered. Each turn it asks every undelivered drone to `step()`, keeps the non-`None` tokens, and joins them with spaces into one output line. If a turn produces *zero* moves while drones remain undelivered, the schedule is stuck and it raises `SolveError` — impossible for a single drone on a valid route, but a guard that Phase 3's fleet scheduling will rely on. The loop is written fleet-shaped now so Phase 3 reuses it unchanged.
+
+**Unreachable end.** If `PathFinder` returns `None`, there is no route at all; `main` raises `SolveError("no path from start to end")`, which prints `[ERROR] no path from start to end` to `stderr` and exits `1` — the same halt-and-report contract as a malformed map.
+
+### Output format
+
+One line per simulation turn, printed to `stdout`. Each line is the space-separated set of moves made **that** turn; a drone that does not move is omitted from the line entirely. A move is one of:
+
+- `D<ID>-<zone>` — drone `<ID>` arrived in `<zone>` this turn.
+- `D<ID>-<src>-<dst>` — drone `<ID>` is in flight along the connection toward the restricted zone `<dst>` (the two-turn transit, turn 1 of 2).
+
+For example, a single drone crossing a route whose second-to-last hop is a restricted zone `R` (`[S, R, E]`) prints:
+
+```text
+D1-S-R
+D1-R
+D1-E
+```
+
+Diagnostics (`--debug`: the parsed-map summary and adjacency) go to `stderr`, keeping `stdout` a clean, gradable move log.
+
 ---
 
 ## Architecture & data flow
@@ -119,7 +153,10 @@ main.py            thin entry: safe file I/O, then parse → solve → print
             └─ zone.py / connection.py   data objects; self-validate in
                                          __post_init__
   └─ drone_map.py  whole-map container: adjacency + graph validation
-       └─ (solver / MCMF)   routes + turn-by-turn schedule → output log
+  └─ pathfinder.py single-drone Dijkstra → route [start … end], or None
+  └─ simulation.py turn loop: steps each drone, joins per-turn tokens
+       └─ drone.py       one drone's cursor: route → per-turn move token
+  └─ (Phase 3: MCMF)   fleet routes + water-filling schedule → output log
 ```
 
 **Layer responsibilities:**
@@ -131,7 +168,10 @@ main.py            thin entry: safe file I/O, then parse → solve → print
 | `tokenizer.py` | Pure line-level translator: one string → one typed record. Knows nothing about line numbers or other lines. |
 | `zone.py` / `connection.py` | Self-validating data objects. Each checks only its own fields, at construction. |
 | `drone_map.py` | Whole-map container. Only layer that sees every object at once → owns graph rules (endpoint existence, duplicate edges via `Connection.key`, exactly one start / one end, connectivity) plus adjacency. |
-| `errors.py` | `MapError(line, cause)` — the single error type surfaced to the user. |
+| `pathfinder.py` | Single-drone solver. Hand-rolled Dijkstra over the zone graph → the fewest-turn route, or `None` when the end is unreachable. The primitive Phase 3's MCMF inner loop reuses. |
+| `simulation.py` | Turn-by-turn engine. Each turn steps every undelivered drone and joins their move tokens into one output line; raises `SolveError` on a stalled schedule. |
+| `drone.py` | One drone's playback cursor. Walks its assigned route, emitting the per-turn move token and handling the restricted zone's two-turn in-flight transit. |
+| `errors.py` | `MapError(line, cause)` for a bad map and `SolveError(cause)` for an unsolvable run — the two error types surfaced to the user. |
 
 **Three validation scopes.** Every rule lives in exactly one scope, chosen by *how much you must know to check it*:
 
@@ -147,11 +187,11 @@ A name-shape rule (no dash/whitespace) has a single owner, `Zone.is_valid_name`,
 
 ```sh
 make install                                  # create .venv + install flake8/mypy/pytest
-make run MAP=maps/easy/01_linear_path.txt     # parse+validate a map (MAP defaults to this)
-make debug MAP=<path>                          # same, with verbose dump
+make run MAP=maps/easy/01_linear_path.txt     # solve one drone + print the per-turn log (MAP defaults to this)
+make debug MAP=<path>                          # same, plus map summary + adjacency on stderr
 make lint                                      # flake8 + mypy (subject flags)
 make lint-strict                               # mypy --strict
-make test                                      # run the parser unit tests
+make test                                      # run the unit test suite (none yet — added in Phase 6)
 make clean                                     # remove caches / bytecode (fclean also drops .venv)
 ```
 
