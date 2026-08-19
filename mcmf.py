@@ -90,14 +90,13 @@ class MinCostMaxFlow:
         self._capacity: list[int] = []
         self._cost: list[int] = []
         
-        self._potentials: dict[str, int] = {}
         self._zone_node: dict[str, str] = {}  # node name -> zone name
 
         self.total_flow: int = 0
         self.total_cost: int = 0
 
         self._build()
-        self._potentials = {node: 0 for node in self._links}
+        self._potential_cost: dict[str, int] = {node: 0 for node in self._links}
 
     def _build(self) -> None:
         """Register split nodes, then internal and link edges.
@@ -205,39 +204,58 @@ class MinCostMaxFlow:
         priority = 1 if zone.zone_type is ZoneType.PRIORITY else 0
         return 2 * zone.turn_cost - priority
 
-    def augment_once(self) -> bool:
+    def dijkstra_augument(self) -> bool:
         """Push one cheapest augmenting path's bottleneck, if one remains.
 
         Returns:
             ``True`` if flow increased, ``False`` once no source->sink path with
             residual capacity exists (max flow reached).
         """
-        pot = self._potentials
+        pot = self._potential_cost
         shortest_dist: dict[str, int] = {self._source: 0}
         prev_edge: dict[str, int] = {}
         explored: list[tuple[int, str]] = [(0, self._source)]
         
         while explored:
-            turns, zone = heapq.heappop(heap)
-            if turns > shortest_dist[zone]:
+            dist, zone = heapq.heappop(explored)
+            if dist > shortest_dist[zone]:
                 continue
-            for edges in self._links[zone]:
-                if self._capacity[zone] <= 0:
+            for edge in self._links[zone]:
+                if self._capacity[edge] <= 0:
                     continue
-                to = self._to[edge]
-                
+                nxt = self._to[edge]
+                cost_conv = self._cost[edge] + pot[zone] - pot[nxt]
+                new_dist = dist + cost_conv
+                if nxt not in shortest_dist or new_dist < shortest_dist[nxt]:
+                    shortest_dist[nxt] = new_dist
+                    prev_edge[nxt] = edge
+                    heapq.heappush(explored, (new_dist, nxt))
+        
+        if self._sink not in shortest_dist:
+            return False
 
-        # Dijkstra from SOURCE over residual edges (cap > 0) using REDUCED cost
-        #     reduced = cost + _potentials[u] - _potentials[v]   (assert reduced >= 0).
-        # Record prev_edge[v] for path reconstruction; settle nodes by distance.
-        # If SINK unreached: return False.
-        # Update potentials: _potentials[v] += dist[v] for every reachable v (restores
-        #     the non-negative-reduced-cost invariant for the next round).
-        # bottleneck = min residual cap along the sink-back path (unlimited
-        #     sentinel treated as +INF).
-        # Push it: for each edge on the path _capacity[e] -= b, _capacity[e^1] += b.
-        # total_flow += b; total_cost += b * real_path_cost; return True.
-        # (b may exceed 1 when caps allow — each unit becomes one lane.)
+        for reached, reached_dist in shortest_dist.items():
+            pot[reached] += reached_dist
+
+        path_edges: list[int] = []
+        zone = self._sink
+        while zone != self._source:
+            edge = prev_edge[zone]
+            path_edges.append(edge)
+            zone = self._to[edge ^ 1] # why zone is = to the _to of residual one?
+
+        max_flow = min(self._capacity[edge] for edge in path_edges)
+        path_cost = 0
+        for edge in path_edges:
+            self._capacity[edge] -= max_flow
+            self._capacity[edge ^ 1] += max_flow
+            path_cost += self._cost[edge]
+        
+        self.total_flow = +max_flow
+        self.total_cost = max_flow * path_cost # why not only += path_cost? I'm confused here
+        return True
+
+
 
     def run_to(self, target_flow: int) -> int:
         """Grow the flow up to a target value, reusing existing residual state.
@@ -249,8 +267,10 @@ class MinCostMaxFlow:
             The flow value actually achieved (``< target_flow`` if the map maxes
             out first).
         """
-        # While total_flow < target_flow and augment_once() succeeds: continue.
-        # Return total_flow.
+        while self.total_flow < target_flow and self.dijkstra_augument():
+                continue
+        return self.total_flow
+
 
     def decompose(self) -> list[list[str]]:
         """Peel the current flow into concrete source->sink zone routes.
@@ -260,6 +280,8 @@ class MinCostMaxFlow:
             ``[start, ..., end]`` — the SAME shape ``PathFinder.shortest_path``
             returns, so a ``Drone`` can play it back unchanged.
         """
+        paths: list[list[str]] = []
+        path: list[str] = []
         # Copy each edge's used flow into a scratch `remaining` array.
         # While flow still leaves _source:
         #     walk _source -> ... -> _sink, at each node taking any out-edge with
@@ -269,6 +291,7 @@ class MinCostMaxFlow:
         #         [start, ..., end];
         #     append that sequence to the lane list.
         # Return the lanes. (Flow is acyclic, so every walk reaches _sink.)
+        return paths
 
     def lane_turn_length(self, lane: list[str]) -> int:
         """Turns one drone alone needs to fly a lane (restricted zones count 2).
