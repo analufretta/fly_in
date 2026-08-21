@@ -29,12 +29,13 @@ We model the map as a capacitated, cost-weighted flow network and solve it with 
 
 - **Zone capacities via node splitting.** Every zone `z` becomes two nodes, `z_in → z_out`, joined by an internal edge with capacity `max_drones` (default 1). All incoming connections land on `z_in`, all outgoing leave from `z_out`. This is what enforces "at most N drones in a zone per turn." Start and end zones are *not* split (unlimited capacity).
 - **Connection capacities.** Each connection becomes an edge with capacity `max_link_capacity` (default 1).
-- **Movement cost = edge cost.**
-  - `normal` → cost 1
-  - `priority` → lower cost, so the shortest-path search naturally *prefers* it ("should be preferred by pathfinding")
-  - `restricted` → cost 2, modelling the two-turn traversal directly as a real edge weight
+- **Movement cost = internal-edge cost.** Cost lives *only* on a zone's internal `z_in → z_out` edge (connections cost 0), charged once per zone entered. The enter-cost is `2 · turn_cost − (1 if priority else 0)`:
+  - `normal` → **2**
+  - `priority` → **1** — the `−1` discount makes it "half a turn" cheaper, so priority zones are *preferred* without ever inflating the turn count ("should be preferred by pathfinding")
+  - `restricted` → **4** — its two-turn traversal, doubled
+  - `restricted + priority` → **3**
   - `blocked` → node removed entirely, so no path can use it
-- All input costs are non-negative.
+- The `2 ·` doubling is what keeps the integer turn-count strictly dominant over the priority tie-break. All input costs are non-negative.
 
 **Why cost-weighted flow with Dijkstra + potentials**
 
@@ -44,7 +45,7 @@ The deciding factor was that we wanted a solver that stays fast on **large maps 
 2. **Potentials cache work across augmentations.** Johnson potentials keep the reduced cost `cost(u, v) + h[u] − h[v] ≥ 0`, which (a) makes Dijkstra safe on the residual graph even though back-edges carry negative cost, and (b) carries distance information forward from one augmentation to the next instead of recomputing cold each time. This reuse is the whole game at high flow.
 3. **Handles real edge costs directly.** The `priority`/`restricted` weights are expressed as genuine costs, and the same model extends cleanly to arbitrary real-world weights (tolls, fuel, congestion) — not just the 1-vs-2 case in the subject.
 
-Because the input has no negative edges, potentials are initialised with a single Dijkstra pass; **Bellman–Ford is never needed**.
+Because the *initial* graph has no negative edges — the reverse residual (twin) edges start at capacity 0, so they are invisible to the search — potentials **start at 0**. There is **no seed Dijkstra pass and no Bellman–Ford**; the potentials only accumulate as augmentations proceed.
 
 **Overall complexity:** `O(F_paths · E · log V)`, where `F_paths` is the number of augmenting paths (not the number of drones).
 
@@ -62,11 +63,11 @@ Both candidates model the problem as single-commodity flow; they differ in wheth
 | **Costs** | 1-vs-2 only, and awkwardly (dummy nodes); arbitrary weights blow up the structure. | Handles real edge costs directly; extends cleanly to arbitrary weights (tolls, fuel, congestion). |
 | **Status** | **Design contrast only** — *not* implemented, *not* a runtime fallback. | **Implemented.** |
 
-**Why B is the build:** A is simpler and provably optimal on the tiny evaluation maps, but the goal was a solver that stays fast on **large maps with large flows and real edge costs**, not just the eval set. B wins on exactly the axes that matter at scale: per-path augmentation instead of per-drone, potential caching across augmentations, and native handling of the `priority`/`restricted` weights. Because the input has no negative edges, potentials are seeded with a single Dijkstra pass and **Bellman–Ford is never needed**. A stays in this README purely to show the structural-encoding alternative we deliberately did not take.
+**Why B is the build:** A is simpler and provably optimal on the tiny evaluation maps, but the goal was a solver that stays fast on **large maps with large flows and real edge costs**, not just the eval set. B wins on exactly the axes that matter at scale: per-path augmentation instead of per-drone, potential caching across augmentations, and native handling of the `priority`/`restricted` weights. Because the initial graph has no negative edges (twin edges start at capacity 0), potentials **start at 0** — neither a seed Dijkstra nor Bellman–Ford is ever needed. A stays in this README purely to show the structural-encoding alternative we deliberately did not take.
 
 ### Phase 2 building block — single-drone shortest path (`pathfinder.py`, implemented)
 
-Before the multi-drone flow solver, `PathFinder` computes the fewest-turn route for **one** drone with a hand-rolled **Dijkstra** (no graph libraries). This is the primitive the MCMF inner loop reuses; on its own it also answers "what is the optimal path for a single drone, and is the end reachable at all?".
+Before the multi-drone flow solver, `PathFinder` computes the fewest-turn route for **one** drone with a hand-rolled **Dijkstra** (no graph libraries). It is **standalone** — it answers "what is the optimal path for a single drone, and is the end reachable at all?". It is *not* reused by the flow solver: MCMF runs its **own** Dijkstra over the residual graph (scalar reduced cost, repeated augmentation), a different search over a different graph. The two share the Dijkstra idea, not the code.
 
 **Cost model.** A path's cost is the sum of the `turn_cost` of each zone *entered* — the start zone is free (the drone begins there). `normal`/`priority` cost 1 turn, `restricted` costs 2 (its two-turn traversal expressed directly as weight). This sum is the single drone's makespan.
 
@@ -154,9 +155,11 @@ main.py            thin entry: safe file I/O, then parse → solve → print
                                          __post_init__
   └─ drone_map.py  whole-map container: adjacency + graph validation
   └─ pathfinder.py single-drone Dijkstra → route [start … end], or None
+  └─ mcmf.py       fleet flow: node-split residual net → min-cost max-flow;
+                   decompose → parallel lanes; lane_turn_length → lane cost
   └─ simulation.py turn loop: steps each drone, joins per-turn tokens
        └─ drone.py       one drone's cursor: route → per-turn move token
-  └─ (Phase 3: MCMF)   fleet routes + water-filling schedule → output log
+  └─ (Phase 3: scheduler)  water-filling over lanes → per-turn output log
 ```
 
 **Layer responsibilities:**
@@ -168,7 +171,8 @@ main.py            thin entry: safe file I/O, then parse → solve → print
 | `tokenizer.py` | Pure line-level translator: one string → one typed record. Knows nothing about line numbers or other lines. |
 | `zone.py` / `connection.py` | Self-validating data objects. Each checks only its own fields, at construction. |
 | `drone_map.py` | Whole-map container. Only layer that sees every object at once → owns graph rules (endpoint existence, duplicate edges via `Connection.key`, exactly one start / one end, connectivity) plus adjacency. |
-| `pathfinder.py` | Single-drone solver. Hand-rolled Dijkstra over the zone graph → the fewest-turn route, or `None` when the end is unreachable. The primitive Phase 3's MCMF inner loop reuses. |
+| `pathfinder.py` | Single-drone solver. Hand-rolled Dijkstra over the zone graph → the fewest-turn route, or `None` when the end is unreachable. **Standalone** (single-drone / reachability); *not* reused by MCMF, which runs its own residual Dijkstra. |
+| `mcmf.py` | Fleet flow solver (Phase 3). Builds the node-split residual network (bare start/end, `z_in→z_out` internal edges, paired twin edges), pushes min-cost max-flow via `dijkstra_augument` (reduced-cost Dijkstra + Johnson potentials), then `decompose` peels the flow into concrete lanes and `lane_turn_length` scores each. |
 | `simulation.py` | Turn-by-turn engine. Each turn steps every undelivered drone and joins their move tokens into one output line; raises `SolveError` on a stalled schedule. |
 | `drone.py` | One drone's playback cursor. Walks its assigned route, emitting the per-turn move token and handling the restricted zone's two-turn in-flight transit. |
 | `errors.py` | `MapError(line, cause)` for a bad map and `SolveError(cause)` for an unsolvable run — the two error types surfaced to the user. |

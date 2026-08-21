@@ -12,10 +12,10 @@ No graph libraries (Norm): the residual network is a hand-built adjacency list
 of edge records with paired reverse edges.
 
 Graph model (node-split so per-zone capacity becomes an edge capacity):
-    Middle zones split into two string-named flow-nodes: ``"<zone>->in"``
-    (links coming IN land here) and ``"<zone>->out"`` (links going OUT
+    Middle zones split into two string-named flow-nodes: ``"<zone>_in"``
+    (links coming IN land here) and ``"<zone>_out"`` (links going OUT
     leave here).
-      - internal edge ``"<zone>->in" -> "<zone>->out"``: this edge IS
+      - internal edge ``"<zone>_in" -> "<zone>_out"``: this edge IS
         "being inside the zone". capacity = ``max_drones``, cost = enter-cost
         of the zone. This is where zone occupancy is capped.
       - each connection ``a-b`` -> two directed edges ``out(a) -> in(b)`` and
@@ -51,7 +51,7 @@ class MinCostMaxFlow:
     Keeps its residual graph and potentials between calls so the scheduler can
     grow the flow value one unit at a time and reuse the work already done.
 
-    Nodes are strings (``"<zone>->in"`` / ``"<zone>->out"``, or a bare zone
+    Nodes are strings (``"<zone>_in"`` / ``"<zone>_out"``, or a bare zone
     name for start/end); only edges carry integer ids, needed for the
     reverse-twin trick (edge ``i`` and its undo edge ``i ^ 1`` sit at paired
     indices).
@@ -135,7 +135,7 @@ class MinCostMaxFlow:
             name: The zone the link starts at.
 
         Returns:
-            The bare node for start/end (not split), else ``"<name>->out"``.
+            The bare node for start/end (not split), else ``"<name>_out"``.
         """
         zone = self._map.zones[name]
         return name if (zone.is_start or zone.is_end) else self._out(name)
@@ -147,7 +147,7 @@ class MinCostMaxFlow:
             name: The zone the link ends at.
 
         Returns:
-            The bare node for start/end (not split), else ``"<name>->in"``.
+            The bare node for start/end (not split), else ``"<name>_in"``.
         """
         zone = self._map.zones[name]
         return name if (zone.is_start or zone.is_end) else self._in(name)
@@ -160,9 +160,9 @@ class MinCostMaxFlow:
             zone_name: The zone.
 
         Returns:
-            ``"<zone_name>->in"``.
+            ``"<zone_name>_in"``.
         """
-        return f"{zone_name}->in"
+        return f"{zone_name}_in"
 
     @staticmethod
     def _out(zone_name: str) -> str:
@@ -172,9 +172,9 @@ class MinCostMaxFlow:
             zone_name: The zone.
 
         Returns:
-            ``"<zone_name>->out"``.
+            ``"<zone_name>_out"``.
         """
-        return f"{zone_name}->out"
+        return f"{zone_name}_out"
 
     def _add_node(self, node: str, zone_name: str) -> None:
         """Register a node name so edges can attach to it.
