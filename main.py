@@ -1,11 +1,11 @@
-"""CLI entry point (Phase 2): load a map, solve one drone, print the run.
+"""CLI entry point: load a map, schedule the fleet, print the run.
 
 Usage:
     python main.py <map_file> [--debug]
 
-Parses + validates the map, computes the single-drone route, and prints one
-line per simulation turn to stdout. ``--debug`` dumps the parsed map summary
-and adjacency to stderr. Multi-drone fleet + visualization arrive later.
+Parses + validates the map, schedules all drones start -> end (min-cost
+max-flow + water-filling), and prints one line per simulation turn to stdout.
+``--debug`` dumps the parsed map summary and adjacency to stderr.
 """
 
 from __future__ import annotations
@@ -14,8 +14,7 @@ import sys
 
 from errors import MapError, SolveError
 from parser import MapParser
-from pathfinder import PathFinder
-from drone import Drone
+from scheduler import Scheduler
 from simulation import Simulation
 
 
@@ -37,10 +36,8 @@ def main(argv: list[str]) -> int:
         return 1
     try:
         drone_map = MapParser().parse(paths[0])
-        route = PathFinder(drone_map).shortest_path()
-        if route is None:
-            raise SolveError("no path from start to end")
-        sim = Simulation(drone_map, [Drone(1, route)])
+        drones_path = Scheduler(drone_map).solve()
+        sim = Simulation(drone_map, drones_path)
         lines = sim.run()
     except (MapError, SolveError) as exc:
         print(exc, file=sys.stderr)

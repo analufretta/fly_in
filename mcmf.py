@@ -79,6 +79,7 @@ class MinCostMaxFlow:
             drone_map: A parsed, validated map with non-``None`` start and end.
         """
         assert drone_map.start is not None and drone_map.end is not None
+
         self._map: DroneMap = drone_map
         self._source: str = drone_map.start
         self._sink: str = drone_map.end
@@ -222,7 +223,7 @@ class MinCostMaxFlow:
         priority = 1 if zone.zone_type is ZoneType.PRIORITY else 0
         return 2 * zone.turn_cost - priority
 
-    def dijkstra_augument(self) -> bool:
+    def _dijkstra_augument(self) -> bool:
         """Push one cheapest augmenting path's bottleneck, if one remains.
 
         Returns:
@@ -280,7 +281,7 @@ class MinCostMaxFlow:
             The flow value actually achieved (``< target_flow`` if the map
             maxes out first).
         """
-        while self.total_flow < target_flow and self.dijkstra_augument():
+        while self.total_flow < target_flow and self._dijkstra_augument():
             continue
         return self.total_flow
 
@@ -288,9 +289,8 @@ class MinCostMaxFlow:
         """Peel the current flow into concrete source->sink node routes.
 
         Returns:
-            One lane per unit of flow. Each lane is a node-name sequence
-            ``[start, ..., end]`` — the SAME shape ``PathFinder.shortest_path``
-            returns, so a ``Drone`` can play it back unchanged.
+            One lane per unit of flow. Each lane is a zone-name sequence
+            ``[start, ..., end]`` — the shape a ``Drone`` plays back unchanged.
         """
         paths: list[list[str]] = []
         edge_flow_registry: dict[int, int] = {
@@ -318,15 +318,3 @@ class MinCostMaxFlow:
                     path.append(zone_name)
             paths.append(path)
         return paths
-
-    def lane_turn_length(self, lane: list[str]) -> int:
-        """Turns one drone alone needs to fly a lane (restricted counts 2).
-
-        Args:
-            lane: A zone-name sequence ``[start, ..., end]`` from decompose.
-
-        Returns:
-            Sum of ``turn_cost`` of every zone ENTERED (start is free). Used by
-            the scheduler's water-filling to rank lanes.
-        """
-        return sum(self._map.zones[zone].turn_cost for zone in lane[1:])

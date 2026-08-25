@@ -1,7 +1,7 @@
 """Turn-by-turn simulation loop (Phase 2, single drone).
 
 The ``Simulation`` drives a set of drones one turn at a time: each turn it asks
-every not-yet-delivered drone to ``step`` and collects their move tokens into a
+every not-yet-delivered drone to ``fly`` and collects their move tokens into a
 single space-separated output line. It stops when all drones are delivered.
 
 Phase 2 runs exactly one drone, but the loop is written fleet-shaped so Phase 3
@@ -45,7 +45,7 @@ class Simulation:
         while not all(d.is_delivered for d in self._drones):
             line = []
             for d in self._drones:
-                if (turn := d.step(self._map)) is not None:
+                if (turn := d.fly(self._map)) is not None:
                     line.append(turn)
             if line:
                 lines.append(" ".join(line))

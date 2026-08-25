@@ -65,61 +65,38 @@ Both candidates model the problem as single-commodity flow; they differ in wheth
 
 **Why B is the build:** A is simpler and provably optimal on the tiny evaluation maps, but the goal was a solver that stays fast on **large maps with large flows and real edge costs**, not just the eval set. B wins on exactly the axes that matter at scale: per-path augmentation instead of per-drone, potential caching across augmentations, and native handling of the `priority`/`restricted` weights. Because the initial graph has no negative edges (twin edges start at capacity 0), potentials **start at 0** — neither a seed Dijkstra nor Bellman–Ford is ever needed. A stays in this README purely to show the structural-encoding alternative we deliberately did not take.
 
-### Phase 2 building block — single-drone shortest path (`pathfinder.py`, implemented)
+### From flow to schedule — the water-filling dispatcher (`scheduler.py`)
 
-Before the multi-drone flow solver, `PathFinder` computes the fewest-turn route for **one** drone with a hand-rolled **Dijkstra** (no graph libraries). It is **standalone** — it answers "what is the optimal path for a single drone, and is the end reachable at all?". It is *not* reused by the flow solver: MCMF runs its **own** Dijkstra over the residual graph (scalar reduced cost, repeated augmentation), a different search over a different graph. The two share the Dijkstra idea, not the code.
+MCMF chooses *which* paths carry flow; the `Scheduler` decides *when* each drone leaves so the last one lands as early as possible. `solve()` drives the whole Phase-3 pipeline:
 
-**Cost model.** A path's cost is the sum of the `turn_cost` of each zone *entered* — the start zone is free (the drone begins there). `normal`/`priority` cost 1 turn, `restricted` costs 2 (its two-turn traversal expressed directly as weight). This sum is the single drone's makespan.
+1. Build a `MinCostMaxFlow` over the map and `run_to(nb_drones)` — grow the flow to `min(maxflow, nb_drones)` units (never more lanes than drones).
+2. If the achieved flow is `0`, the end is unreachable → raise `SolveError`. **This is the only reachability check the program needs**; a zero-flow map has no start→end route at all.
+3. `decompose()` the flow into that many **lanes** (one zone-name route per flow unit; a "fat" route that carries `k` units appears `k` times).
+4. `_assign()` water-fills the drones across the lanes.
+5. Materialize one `Drone(id, lane, release_turn)` per drone and hand the list to `Simulation`.
 
-**Lexicographic key `(turns, penalty)`.** Priority zones must be *preferred* without ever inflating the turn count, so cost is a pair, not a scalar:
+**Why one drone per lane per turn is always safe.** A feasible flow guarantees that if each lane carries **one drone per turn**, no zone or connection cap is ever exceeded — the caps are baked into the edge capacities MCMF respected. So the scheduler never tracks capacity at run time; it only has to keep each lane at ≤ 1 departure per turn. Staggering successive drones on a lane by exactly one turn does that, so the whole dispatch is feasible **by construction** — no reservation table, no conflict resolution, no deadlock.
 
-- `turns` — the real makespan. **Primary** key.
-- `penalty` — `0` for a priority zone, `1` otherwise. So `penalty` accumulates the count of *non-priority* zones entered.
+**Water-filling (`_assign`).** Drones on one lane leave one turn apart, so a lane of turn-length `L` already carrying `count` drones would land the *next* drone at turn `count + L`. Each drone is placed on the lane minimizing that value, and its `release_turn` is that lane's `count` before placement; then `count` for that lane increments. Greedily minimizing each drone's landing turn minimizes the last landing (the makespan). A lane's length `L` is `_lane_length` — the sum of `turn_cost` over every zone *entered* (`restricted` counts 2), the start being free.
 
-Python compares tuples lexicographically: `turns` decides first, and `penalty` is consulted **only** when `turns` ties. A slower-but-priority route can therefore never beat a faster one (`(2, 5) < (3, 0)` because `2 < 3`); among equal-turn routes, the one crossing more priority zones wins (`(3, 1) < (3, 3)`). Priority is a tie-break, never an override — matching the subject's "should be preferred" against a turns-based score.
+**Why no sweep over lane counts.** Adding a lane only ever gives each drone more options, so it can never *worsen* the makespan (an unhelpful long lane is simply never fed). The scheduler therefore grows straight to `min(maxflow, nb_drones)` lanes and water-fills once — no need to try every candidate flow value.
 
-**Blocked zones.** Skipped during relaxation via `zone.is_passable`, so no route can ever enter one.
+### Execution — turning lanes into a per-turn log (`drone.py`, `simulation.py`)
 
-**Min-heap frontier with lazy deletion.** The frontier is a `heapq` min-heap of `(turns, penalty, name)`; `heappop` always returns the cheapest pending zone. We never *remove* superseded entries — when a cheaper route to a zone is found we simply push a new entry, leaving the stale one buried. Each pop is guarded:
+The scheduler answers *where and when* each drone goes; `Drone` and `Simulation` replay that into the output **timeline** — one line per simulation turn.
 
-```python
-if (turns, penalty) > best[name]:
-    continue   # stale: this zone was already settled via a cheaper route
-```
+**`Drone` — a playback cursor.** Each drone holds its route plus a small amount of turn state (`_pos`, `_in_flight`, `_in_flight_dest`, `_delivered`, and a `_wait` countdown seeded from `release_turn`). Its `fly()` advances the drone by exactly one turn and returns that turn's move token, or `None` if it has nothing to do (delivered, or still waiting for its release turn). Keeping the cursor on the drone (not the loop) is what lets one `Simulation` drive a whole fleet with the same `fly()` contract.
 
-`best[name]` holds the true cheapest cost known; a popped entry worse than that is an outdated duplicate and is discarded. This is cheaper than searching the heap to delete stale entries.
-
-**Back-pointer reconstruction.** A `prev[name]` map records the predecessor on the best route to each zone, updated **in lock-step with `best`** (both are written in the same relaxation branch, so they never disagree). Once the end zone pops non-stale, Dijkstra's settle guarantee makes its whole `prev` chain final. `_reconstruct` walks `prev` backward from `end` to `start` and reverses the result. The walk is guaranteed to terminate: entering any zone costs ≥ 1 turn, so `turns` strictly *decreases* along the backward chain — it cannot cycle and must bottom out at `start` (the only zone with no `prev`, cost `0`). If the end never received a cost, it is unreachable and `shortest_path` returns `None` (surfaced as a `SolveError`).
-
-**Worked example (why stale entries and the guard matter).** Take the graph `S→X=1`, `S→Y=2`, `X→C=5`, `Y→C=1`, `C→Z=10`, with `start=S`, `end=Z` (single scalar costs, to isolate the mechanic):
-
-| Loop | pop | action | `best[C]` / `prev[C]` | heap after |
-|---|---|---|---|---|
-| 1 | `(0,S)` | relax X→1, Y→2 | — | `(1,X) (2,Y)` |
-| 2 | `(1,X)` | relax C via X = **6** | `6` / `X` | `(2,Y) (6,C)` |
-| 3 | `(2,Y)` | relax C via Y = **3** < 6 → overwrite | `3` / **`Y`** | `(3,C) (6,C)` ← C twice |
-| 4 | `(3,C)` | relax Z = 13 | — | `(6,C) (13,Z)` |
-| 5 | `(6,C)` | `6 > best[C]=3` → **stale, skip** | — | `(13,Z)` |
-| 6 | `(13,Z)` | `Z == end` → **break** | — | — |
-
-`C` is pushed **twice**; `prev[C]` flips `X → Y` when the cheaper route appears; the leftover `(6,C)` is discarded by the guard in loop 5. Reconstruction walks `Z → C → Y → S` and reverses it → **`[S, Y, C, Z]`**. Note the final route goes through `Y` even though `X` was cheaper to reach first — because `Y`'s route to the goal is cheaper overall, which is exactly the trap a greedy "take the nearest neighbour" would fall into and Dijkstra does not.
-
-### Phase 2 execution — turning a route into a per-turn log (`drone.py`, `simulation.py`)
-
-`PathFinder` answers *where* a drone goes; `Drone` and `Simulation` answer *when*. A route is a static list of zone names, but the output is a **timeline** — one line per simulation turn — so the route has to be replayed step by step.
-
-**`Drone` — a playback cursor.** Each drone holds its route plus a small amount of turn state (`_pos`, `_in_flight`, `_flight_dest`, `_delivered`). Its `step()` advances the drone by exactly one turn and returns that turn's move token, or `None` if it has nothing to do. Keeping the cursor on the drone (not the loop) is deliberate: Phase 3 drives a whole fleet with the same `step()` contract.
+**`release_turn` — the stagger.** A drone with `release_turn = r` sits at the start emitting nothing for its first `r` turns (`_wait` counts down), then flies. This is the one mechanism that spaces a lane's drones one turn apart; `release_turn = 0` (the default) is an ordinary drone that leaves immediately.
 
 **The restricted zone's two-turn transit** is the one subtle case, and it is why a drone needs an in-flight state rather than a single position:
 
-- **Turn 1 — departure.** Entering a restricted zone costs 2 turns, so the drone spends the first turn *on the connection*. It sets `_in_flight = True`, records the index it is heading for in `_flight_dest`, and emits the connection token `D<id>-<src>-<dst>`. It is **not** counted as inside the zone this turn.
-- **Turn 2 — arrival.** `step()` sees `_in_flight`, lands the drone on `_flight_dest`, clears the flag, and emits `D<id>-<dst>`.
+- **Turn 1 — departure.** Entering a restricted zone costs 2 turns, so the drone spends the first turn *on the connection*. It sets `_in_flight = True`, records the index it is heading for in `_in_flight_dest`, and emits the connection token `D<id>-<src>-<dst>`. It is **not** counted as inside the zone this turn (which is exactly why the flow model treats it as latency, not extra occupancy).
+- **Turn 2 — arrival.** `fly()` sees `_in_flight`, lands the drone on `_in_flight_dest`, clears the flag, and emits `D<id>-<dst>`.
 
-`_flight_dest` exists precisely because `step()` has no memory between calls except what lives on the drone: turn 2 must recover the destination that turn 1 decided.
+`_in_flight_dest` exists precisely because `fly()` has no memory between calls except what lives on the drone: turn 2 must recover the destination that turn 1 decided.
 
-**`Simulation` — the clock.** `run()` loops until every drone is delivered. Each turn it asks every undelivered drone to `step()`, keeps the non-`None` tokens, and joins them with spaces into one output line. If a turn produces *zero* moves while drones remain undelivered, the schedule is stuck and it raises `SolveError` — impossible for a single drone on a valid route, but a guard that Phase 3's fleet scheduling will rely on. The loop is written fleet-shaped now so Phase 3 reuses it unchanged.
-
-**Unreachable end.** If `PathFinder` returns `None`, there is no route at all; `main` raises `SolveError("no path from start to end")`, which prints `[ERROR] no path from start to end` to `stderr` and exits `1` — the same halt-and-report contract as a malformed map.
+**`Simulation` — the clock.** `run()` loops until every drone is delivered. Each turn it asks every undelivered drone to `fly()`, keeps the non-`None` tokens, and joins them with spaces into one output line. If a turn produces *zero* moves while drones remain undelivered, the schedule is stuck and it raises `SolveError` — a safety guard that water-filling's staggered releases make unreachable in practice (every lane's first drone flies continuously from turn 0, so some drone always moves until the makespan).
 
 ### Output format
 
@@ -147,34 +124,33 @@ The program is a **pipeline that narrows trust**: raw bytes → lines → isolat
 **Runtime call chain** (root → leaf):
 
 ```
-main.py            thin entry: safe file I/O, then parse → solve → print
+main.py            thin entry: safe file I/O, then parse → schedule → run
   └─ parser.py     orchestrator: owns line numbers; wraps ValueError into
                    MapError(line, cause); assembles the DroneMap
        └─ tokenizer.py   one raw line → one typed record (classify + parse_*)
             └─ zone.py / connection.py   data objects; self-validate in
                                          __post_init__
   └─ drone_map.py  whole-map container: adjacency + graph validation
-  └─ pathfinder.py single-drone Dijkstra → route [start … end], or None
-  └─ mcmf.py       fleet flow: node-split residual net → min-cost max-flow;
-                   decompose → parallel lanes; lane_turn_length → lane cost
-  └─ simulation.py turn loop: steps each drone, joins per-turn tokens
-       └─ drone.py       one drone's cursor: route → per-turn move token
-  └─ (Phase 3: scheduler)  water-filling over lanes → per-turn output log
+  └─ scheduler.py  fleet dispatch: drives MCMF, water-fills drones over lanes
+       └─ mcmf.py       node-split residual net → min-cost max-flow;
+                        decompose → parallel lanes
+  └─ simulation.py turn loop: flies each drone, joins per-turn tokens
+       └─ drone.py       one drone's cursor: route + release → move token
 ```
 
 **Layer responsibilities:**
 
 | File | Role |
 |---|---|
-| `main.py` | Thin entry point. Opens the map file with a context manager (no crash), kicks off parse + solve, prints the per-turn log. |
+| `main.py` | Thin entry point. Opens the map file with a context manager (no crash), kicks off parse + schedule + run, prints the per-turn log. |
 | `parser.py` | Orchestrator. Walks lines, tracks the line number, and is the **only** place that turns a raw `ValueError` into a `MapError(line, cause)`. Assembles and returns a `DroneMap`. |
 | `tokenizer.py` | Pure line-level translator: one string → one typed record. Knows nothing about line numbers or other lines. |
 | `zone.py` / `connection.py` | Self-validating data objects. Each checks only its own fields, at construction. |
 | `drone_map.py` | Whole-map container. Only layer that sees every object at once → owns graph rules (endpoint existence, duplicate edges via `Connection.key`, exactly one start / one end, connectivity) plus adjacency. |
-| `pathfinder.py` | Single-drone solver. Hand-rolled Dijkstra over the zone graph → the fewest-turn route, or `None` when the end is unreachable. **Standalone** (single-drone / reachability); *not* reused by MCMF, which runs its own residual Dijkstra. |
-| `mcmf.py` | Fleet flow solver (Phase 3). Builds the node-split residual network (bare start/end, `z_in→z_out` internal edges, paired twin edges), pushes min-cost max-flow via `dijkstra_augument` (reduced-cost Dijkstra + Johnson potentials), then `decompose` peels the flow into concrete lanes and `lane_turn_length` scores each. |
-| `simulation.py` | Turn-by-turn engine. Each turn steps every undelivered drone and joins their move tokens into one output line; raises `SolveError` on a stalled schedule. |
-| `drone.py` | One drone's playback cursor. Walks its assigned route, emitting the per-turn move token and handling the restricted zone's two-turn in-flight transit. |
+| `mcmf.py` | Fleet flow solver. Builds the node-split residual network (bare start/end, `z_in→z_out` internal edges, paired twin edges), pushes min-cost max-flow via `_dijkstra_augument` (reduced-cost Dijkstra + Johnson potentials) — `run_to(target)` grows to a flow value, `decompose` peels the flow into concrete lanes. |
+| `scheduler.py` | Fleet dispatcher. Drives `mcmf` (`run_to` → `decompose`), water-fills the drones across the lanes (`_assign`), and returns one `Drone` per drone carrying its lane and `release_turn`. Raises `SolveError` when the max flow is `0` (end unreachable). |
+| `simulation.py` | Turn-by-turn engine. Each turn flies every undelivered drone and joins their move tokens into one output line; raises `SolveError` on a stalled schedule. |
+| `drone.py` | One drone's playback cursor. Waits out its `release_turn`, then walks its assigned route, emitting the per-turn move token and handling the restricted zone's two-turn in-flight transit. |
 | `errors.py` | `MapError(line, cause)` for a bad map and `SolveError(cause)` for an unsolvable run — the two error types surfaced to the user. |
 
 **Three validation scopes.** Every rule lives in exactly one scope, chosen by *how much you must know to check it*:
@@ -191,7 +167,7 @@ A name-shape rule (no dash/whitespace) has a single owner, `Zone.is_valid_name`,
 
 ```sh
 make install                                  # create .venv + install flake8/mypy/pytest
-make run MAP=maps/easy/01_linear_path.txt     # solve one drone + print the per-turn log (MAP defaults to this)
+make run MAP=maps/easy/01_linear_path.txt     # schedule the fleet + print the per-turn log (MAP defaults to this)
 make debug MAP=<path>                          # same, plus map summary + adjacency on stderr
 make lint                                      # flake8 + mypy (subject flags)
 make lint-strict                               # mypy --strict
