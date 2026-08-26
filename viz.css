@@ -1,0 +1,30 @@
+/*
+  SCAFFOLD (pseudocode only). Inlined into the HTML by visualizer.render()
+  (placeholder {{STYLE}}), so the output file stays self-contained/offline.
+*/
+
+/* PSEUDOCODE — page shell */
+/* body: dark background, centered stage, sans-serif, no margin jank */
+
+/* PSEUDOCODE — svg stage */
+/* #stage: fixed/large width+height, border, background contrast */
+
+/* PSEUDOCODE — edges */
+/* .edge line: thin stroke, muted color */
+/* .edge-label: small, dim */
+
+/* PSEUDOCODE — zones (nodes) */
+/* .zone circle: radius, stroke; fill comes from inline zone.color */
+/* .zone--start / .zone--end: distinct thick outline */
+/* .zone--restricted / .zone--blocked: dashed / hatched hint */
+/* .zone--over-capacity: red glow when occupancy > max_drones this turn */
+/* .zone-label: readable over fill */
+
+/* PSEUDOCODE — drones */
+/* .drone: small dot, high-contrast, drop-shadow */
+/* transition: cx/cy (or transform) ~0.3s ease  <- smooth turn-to-turn move
+   (only if using CSS-transition animation instead of rAF lerp) */
+
+/* PSEUDOCODE — controls */
+/* #controls: row, gap, buttons + range slider + turn counter */
+/* button/slider: basic sizing so they're clickable */

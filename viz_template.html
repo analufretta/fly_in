@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<!--
+  SCAFFOLD (structure only). visualizer.py fills the three placeholders:
+    {{STYLE}}  <- viz.css contents (inlined -> offline, no external file)
+    {{DATA}}   <- json.dumps(build_timeline())  (zones/edges/turns)
+    {{SCRIPT}} <- viz.js contents (inlined)
+  Result = ONE self-contained file: open in any browser, no server, no network.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Flying — drone run</title>
+  <style>
+    /* {{STYLE}}  (viz.css inlined here) */
+  </style>
+</head>
+<body>
+
+  <!-- Header / title -->
+  <header>
+    <!-- PSEUDOCODE: map name, drone count, total turns -->
+  </header>
+
+  <!-- The stage: SVG the JS draws into (nodes, edges, drones) -->
+  <svg id="stage">
+    <!-- PSEUDOCODE: left empty; viz.js builds all elements from DATA -->
+  </svg>
+
+  <!-- Playback controls -->
+  <div id="controls">
+    <!-- PSEUDOCODE:
+         [play/pause button]  [step-back] [step-fwd]
+         [range slider: turn 0 .. lastTurn]
+         [turn counter label: "turn N / total"]
+         [speed control (optional)]
+    -->
+  </div>
+
+  <!-- Data payload: injected as JSON, read by viz.js on load -->
+  <script id="run-data" type="application/json">
+    {{DATA}}
+  </script>
+
+  <!-- Animation logic -->
+  <script>
+    /* {{SCRIPT}}  (viz.js inlined here) */
+  </script>
+
+</body>
+</html>
