@@ -1,7 +1,5 @@
 """Browser visualizer: turn a solved run into a self-contained HTML file.
 
-SCAFFOLD (pseudocode only — no real implementation yet).
-
 Pipeline:
     DroneMap + Simulation.run() token lines
         -> build_timeline()   (pure Python: tokens -> per-turn positions)
@@ -187,12 +185,12 @@ class Visualizer:
         html = self._load_template("viz_template.html")
         style = self._load_template("viz.css")
         script = self._load_template("viz.js")
-        out = (
-            html.replace("{{STYLE}}", style)
-            .replace("{{SCRIPT}}", script)
+        full_content = (
+            html.replace("/* {{STYLE}} */", style)
+            .replace("/* {{SCRIPT}} */", script)
             .replace("{{DATA}}", data)
-        ) # understand
-        self._write(outfile, out)
+        )
+        self._write(outfile, full_content)
 
     def _load_template(self, path: str) -> str:
         """Read a template file next to this module, crash-safe.
@@ -206,8 +204,12 @@ class Visualizer:
         Raises:
             SolveError: If the template cannot be read.
         """
-        # PSEUDOCODE: with open(path) as f: return f.read()  (-> SolveError)
-        ...
+        full_path = os.path.join(os.path.dirname(__file__), path)
+        try:
+            with open(full_path, encoding="utf-8") as handle:
+                return handle.read()
+        except OSError as exc:
+            raise SolveError(f"cannot read template {path!r}: {exc}")
 
     def _write(self, path: str, content: str) -> None:
         """Write ``content`` to ``path``, crash-safe.
@@ -219,5 +221,8 @@ class Visualizer:
         Raises:
             SolveError: If the write fails.
         """
-        # PSEUDOCODE: with open(path, "w") as f: f.write(content)  (try/except)
-        ...
+        try:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(content)
+        except OSError as exc:
+            raise SolveError(f"cannot write {path!r}: {exc}")

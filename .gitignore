@@ -19,6 +19,11 @@ dist/
 venv/
 env/
 
+# Generated visualizer output (keep the template)
+/*.html
+!viz_template.html
+result.txt
+
 # Type / lint / test caches
 .mypy_cache/
 .pytest_cache/

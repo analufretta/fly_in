@@ -6,7 +6,7 @@ MYPY    := $(VENV)/bin/mypy
 PYTEST  := $(VENV)/bin/pytest
 
 # Default map for `make run` / `make debug`; override: make run MAP=maps/hard/01_maze_nightmare.txt
-MAP ?= maps/easy/01_linear_path.txt
+MAP ?= maps/hard/03_ultimate_challenge.txt
 
 MYPY_FLAGS        := --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
 MYPY_STRICT_FLAGS := --strict
@@ -22,7 +22,7 @@ $(VENV)/.installed: requirements.txt
 	touch $(VENV)/.installed
 
 run:  ## Parse+validate a map: make run MAP=<path>
-	$(PY) main.py $(MAP)
+	$(PY) main.py $(MAP) > result.txt
 
 debug:  ## Same as run with verbose dump
 	$(PY) main.py $(MAP) --debug

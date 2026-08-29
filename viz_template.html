@@ -1,39 +1,38 @@
 <!DOCTYPE html>
 <!--
-  SCAFFOLD (structure only). visualizer.py fills the three placeholders:
-    {{STYLE}}  <- viz.css contents (inlined -> offline, no external file)
-    {{DATA}}   <- json.dumps(build_timeline())  (zones/edges/turns)
-    {{SCRIPT}} <- viz.js contents (inlined)
+  visualizer.py fills three placeholders before writing this file:
+    STYLE  comment in <head>  <- viz.css contents (inlined, offline)
+    DATA   in #run-data       <- json.dumps(build_timeline())
+    SCRIPT comment at end      <- viz.js contents (inlined)
   Result = ONE self-contained file: open in any browser, no server, no network.
 -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Flying — drone run</title>
+  <title>Fly_in</title>
   <style>
-    /* {{STYLE}}  (viz.css inlined here) */
+  /* {{STYLE}} */
   </style>
 </head>
 <body>
 
   <!-- Header / title -->
   <header>
-    <!-- PSEUDOCODE: map name, drone count, total turns -->
+    <h1>Fly_in</h1>
+    <h2>Interactive Result Visualization</h2>
+    <p id="summary"><!-- JS fills: N drones · N zones · N turns --></p>
   </header>
 
   <!-- The stage: SVG the JS draws into (nodes, edges, drones) -->
-  <svg id="stage">
-    <!-- PSEUDOCODE: left empty; viz.js builds all elements from DATA -->
-  </svg>
+  <svg id="stage" xmlns="http://www.w3.org/2000/svg"></svg>
 
   <!-- Playback controls -->
   <div id="controls">
-    <!-- PSEUDOCODE:
-         [play/pause button]  [step-back] [step-fwd]
-         [range slider: turn 0 .. lastTurn]
-         [turn counter label: "turn N / total"]
-         [speed control (optional)]
-    -->
+    <button id="back" type="button">⏮ Prev</button>
+    <button id="play" type="button">▶ Play</button>
+    <button id="fwd" type="button">Next ⏭</button>
+    <input id="scrub" type="range" min="0" value="0" step="1">
+    <span id="turn-label">turn 0 / 0</span>
   </div>
 
   <!-- Data payload: injected as JSON, read by viz.js on load -->
@@ -43,7 +42,7 @@
 
   <!-- Animation logic -->
   <script>
-    /* {{SCRIPT}}  (viz.js inlined here) */
+  /* {{SCRIPT}} */
   </script>
 
 </body>

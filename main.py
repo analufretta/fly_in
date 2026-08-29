@@ -10,12 +10,14 @@ max-flow + water-filling), and prints one line per simulation turn to stdout.
 
 from __future__ import annotations
 
+import os
 import sys
 
 from errors import MapError, SolveError
 from parser import MapParser
 from scheduler import Scheduler
 from simulation import Simulation
+from visualizer import Visualizer
 
 
 def main(argv: list[str]) -> int:
@@ -39,6 +41,8 @@ def main(argv: list[str]) -> int:
         drones_path = Scheduler(drone_map).solve()
         sim = Simulation(drone_map, drones_path)
         lines = sim.run()
+        outfile = os.path.splitext(os.path.basename(paths[0]))[0] + ".html"
+        Visualizer(drone_map, lines).render(outfile)
     except (MapError, SolveError) as exc:
         print(exc, file=sys.stderr)
         return 1
@@ -51,6 +55,7 @@ def main(argv: list[str]) -> int:
                   f"{drone_map.neighbors(name)}", file=sys.stderr)
     for line in lines:
         print(line)
+    print(f"wrote {outfile}", file=sys.stderr)
     return 0
 
 
