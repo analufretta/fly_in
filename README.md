@@ -177,6 +177,8 @@ make clean                                     # remove caches / bytecode (fclea
 
 Runtime has **zero** third-party dependencies (graph and parser are hand-rolled); `make install` only fetches the lint/test tooling.
 
+Every successful `make run` also writes `<mapname>.html` (e.g. `01_linear_path.html`) — the animated visualiser (see [Visual representation](#visual-representation)). Open it in any browser; the move log still goes to `stdout` untouched.
+
 ### Error reporting
 
 Any malformed map **stops the program** with a single clear message on `stderr` and a non-zero exit code (`1`) — never a raw traceback. Line-specific problems name the offending 1-based line and the cause; whole-map problems (e.g. a missing `nb_drones`, or no start/end zone) omit the line:
@@ -192,8 +194,39 @@ This satisfies the subject's rule that a parsing error must halt and report the 
 
 ## Visual representation
 
-<!-- TODO: document the visual output actually implemented (colored terminal and/or GUI):
-     what is shown, how to read it, how to toggle it. -->
+The mandatory visual feedback is a **graphical interface** (subject option 2): a
+single, self-contained **HTML file** that animates the run in any browser. It is
+built with **SVG + vanilla JavaScript**; the Python side (`visualizer.py`) only
+produces data and string-assembles the file, so there is **no third-party
+graphics dependency** (no `matplotlib`), honouring the no-graph-libs rule.
+
+**How to see it.** Every successful run automatically writes `<mapname>.html`
+next to where you run it — e.g. `make run MAP=maps/easy/02_simple_fork.txt`
+produces `02_simple_fork.html`. Open that file in any browser: no server, no
+network, no dependencies (CSS and JS are inlined into the one file).
+
+**What it shows.**
+
+- The network laid out by each zone's `x`/`y` coordinate (y-flipped so map "up"
+  is screen "up"), padded to fit the stage.
+- **Zones** as circles filled with the map's `color=` field (start and end
+  ringed in white); each labelled with its name and its live occupancy.
+- **Connections** as lines, labelled with their capacity.
+- **Drones** as dots — one per drone.
+
+**Playback controls.**
+
+- **▶ Play / ⏸ Pause** animates the schedule turn by turn; **⏮ Prev / Next ⏭**
+  step one turn; a **slider** scrubs to any turn; a label reads `turn N / total`.
+- Drones **glide** between positions (CSS transitions). When several drones
+  share a zone they **fan out** around a small ring so each stays visible.
+- A drone crossing a restricted zone is drawn at the **connection midpoint**
+  during its two-turn transit, matching the `D<id>-<src>-<dst>` token.
+- A zone whose occupancy would exceed its capacity flashes a **red outline**.
+
+**Why it can't lie.** The per-turn positions are parsed straight from the same
+`stdout` move log the grader reads — the visualizer replays the tokens rather
+than re-deriving the schedule, so the animation and the log can never disagree.
 
 ---
 
