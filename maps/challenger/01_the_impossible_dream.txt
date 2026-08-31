@@ -64,17 +64,17 @@ hub: priority_dead2 12 -1 [color=black]
 
 # === LAYER 4: The Convergence Hell ===
 # Multiple restricted paths that must merge
-hub: conv_restricted1 13 2 [zone=restricted color=darkred max_drones=1]
-hub: conv_restricted2 14 2 [zone=restricted color=darkred max_drones=1]
-hub: conv_restricted3 15 2 [zone=restricted color=darkred max_drones=1]
+hub: conv_restricted1 13 2 [zone=restricted color=magenta max_drones=1]
+hub: conv_restricted2 14 2 [zone=restricted color=magenta max_drones=1]
+hub: conv_restricted3 15 2 [zone=restricted color=magenta max_drones=1]
 
-hub: conv_restricted4 13 0 [zone=restricted color=darkred max_drones=1]
-hub: conv_restricted5 14 0 [zone=restricted color=darkred max_drones=1]
-hub: conv_restricted6 15 0 [zone=restricted color=darkred max_drones=1]
+hub: conv_restricted4 13 0 [zone=restricted color=magenta max_drones=1]
+hub: conv_restricted5 14 0 [zone=restricted color=magenta max_drones=1]
+hub: conv_restricted6 15 0 [zone=restricted color=magenta max_drones=1]
 
-hub: conv_restricted7 13 -2 [zone=restricted color=darkred max_drones=1]
-hub: conv_restricted8 14 -2 [zone=restricted color=darkred max_drones=1]
-hub: conv_restricted9 15 -2 [zone=restricted color=darkred max_drones=1]
+hub: conv_restricted7 13 -2 [zone=restricted color=magenta max_drones=1]
+hub: conv_restricted8 14 -2 [zone=restricted color=magenta max_drones=1]
+hub: conv_restricted9 15 -2 [zone=restricted color=magenta max_drones=1]
 
 # === LAYER 5: The Final Gauntlet of Doom ===
 hub: final_merge 16 0 [color=violet max_drones=5]
@@ -85,7 +85,7 @@ hub: final_torture4 20 0 [color=crimson max_drones=1]
 hub: final_torture5 21 0 [color=crimson max_drones=1]
 
 # The ultimate goal
-end_hub: impossible_goal 23 0 [color=rainbow]
+end_hub: impossible_goal 23 0 [color=indigo]
 
 # === CONNECTIONS: The Web of Suffering ===
 

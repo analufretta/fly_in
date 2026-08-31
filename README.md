@@ -224,6 +224,33 @@ network, no dependencies (CSS and JS are inlined into the one file).
   during its two-turn transit, matching the `D<id>-<src>-<dst>` token.
 - A zone whose occupancy would exceed its capacity flashes a **red outline**.
 
+**Who does what (the stack).** Each layer has one job:
+
+- **HTML** (`viz_template.html`) builds the empty page and a blank
+  `<svg id="stage">` — the drawing surface. It draws nothing itself; it just
+  reserves the canvas and the slots the other layers fill.
+- **SVG** is that vector surface. Its tags *are* the shapes: `<circle>` is a
+  zone or a drone, `<line>` is a connection, `<text>` is a label. Vectors stay
+  crisp at any zoom.
+- **CSS** (`viz.css`) styles the *uniform* appearance — fill/stroke colours,
+  line thickness, fonts, and the drone **glide** (a `transition` on the circle's
+  centre, so a position change animates instead of teleporting).
+- **JavaScript** (`viz.js`) runs in the browser: it reads the embedded map data,
+  **generates** the SVG shapes and their positions, and drives the animation and
+  controls. Data-driven styling that CSS can't express as a fixed rule (each
+  zone's `color=`) is set inline by JS.
+
+**Why the geometry lives in JS, not Python.** A browser only executes
+JavaScript, and by the time the file is opened Python has already exited — so
+anything interactive *must* be JS. The animation needs each zone's **pixel**
+coordinates live, to drop drones onto zone centres or connection midpoints, so
+the grid→pixel transform (scaling, padding, the y-flip) has to run in the
+browser regardless. Computing those pixels in Python *as well* would duplicate
+the same transform in two languages and invite drift — change the padding in one
+and drones land off their zones. So Python ships only the **raw map data** (grid
+coordinates, capacities, colours, and the turn-by-turn zone/edge *names*), and
+JS is the **single source of truth** for pixels.
+
 **Why it can't lie.** The per-turn positions are parsed straight from the same
 `stdout` move log the grader reads — the visualizer replays the tokens rather
 than re-deriving the schedule, so the animation and the log can never disagree.

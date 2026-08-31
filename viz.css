@@ -1,110 +1,126 @@
 /*
-  SCAFFOLD (pseudocode only). Inlined into the HTML by visualizer.render()
-  (placeholder {{STYLE}}), so the output file stays self-contained/offline.
+  CSS = rules of the form
+  selector { property: value; }
+  Three selector kinds used below:
+    tag      body / header / h1   -> every element of that type
+    .class   .edge / .drone       -> elements with class
+    #id      #stage / #summary    -> the ONE element with that id (unique)
+  A space between selectors ("#controls button") means "inside/descendant".
+  SVG shapes use fill (interior) + stroke (outline), NOT color/background.
 */
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  background: #1a1d24;
-  color: #e6e6e6;
-  font-family: system-ui, sans-serif;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+body {                       /* the whole page */
+  margin: 0;                 /* remove the browser's default gap around the page */
+  min-height: 100vh;         /* body is at least full window height (vh = 1% of window height) */
+  background: #1a1d24;       /* dark charcoal page background (#RRGGBB hex) */
+  color: #e6e6e6;            /* default TEXT color: near-white */
+  font-family: system-ui, sans-serif;  /* use the OS UI font; fall back to any sans-serif */
+  display: flex;             /* lay children out with flexbox (a layout engine) */
+  flex-direction: column;    /* stack children top -> bottom (default flex is left -> right) */
+  align-items: center;       /* center children horizontally (the flex cross axis) */
 }
 header {
-  text-align: center;
-  margin: 16px 0 8px;
+  text-align: center;        /* center the text inside the header */
+  margin: 16px 0 8px;        /* outer spacing: 16 top | 0 sides | 8 bottom */
 }
-header h1 {
-  margin: 0;
-  font-size: 2rem;
-  letter-spacing: 1px;
-  color: #5b9bd5;
+header h1 {                  /* the <h1> that sits inside <header> */
+  margin: 0;                 /* drop h1's default large margins */
+  font-size: 2rem;           /* 2x the root font size (rem = root em, ~16px -> 32px) */
+  letter-spacing: 1px;       /* extra gap between letters */
+  color: #5b9bd5;            /* blue title */
 }
 header h2 {
-  margin: 2px 0 0;
+  margin: 2px 0 0;           /* 2 top | 0 sides | 0 bottom */
   font-size: 1rem;
-  font-weight: 400;
-  color: #9aa4b2;
+  font-weight: 400;          /* normal weight; headings default to bold (700) */
+  color: #9aa4b2;            /* muted grey-blue subtitle */
 }
-#summary {
+#summary {                   /* the element with id="summary" (JS fills its text) */
   margin: 6px 0 0;
-  color: #7f8a99;
+  color: #7f8a99;            /* faint grey */
   font-size: 0.9rem;
 }
 /* --- svg stage ------------------------------------------------------- */
 #stage {
-  width: min(90vw, 900px);
-  height: 60vh;
-  background: #22262f;
-  border: 1px solid #333a46;
-  border-radius: 8px;
+  width: min(96vw, 1400px);  /* the SMALLER of 96% window width or 1400px (responsive cap) */
+  height: 72vh;              /* 72% of window height */
+  background: #22262f;       /* slightly lighter than the page so the drawing stands out */
+  border: 1px solid #333a46; /* 1px solid grey frame */
+  border-radius: 8px;        /* rounded corners */
 }
 /* --- edges ----------------------------------------------------------- */
-.edge {
-  stroke: #4a5262;
-  stroke-width: 2;
+.edge {                      /* the connection lines between zones */
+  stroke: #4a5262;           /* SVG line COLOR is "stroke" (not "color") */
+  stroke-width: 2;           /* line thickness in SVG units */
 }
-.edge-label {
-  fill: #6b7688;
+.edge-label {                /* the capacity number drawn on each edge */
+  fill: #6b7688;             /* SVG TEXT color is "fill" (not "color") */
   font-size: 11px;
 }
 /* --- zones (nodes) --------------------------------------------------- */
 /* fill comes from inline zone.color (set by viz.js); CSS does the rest. */
-.zone {
-  stroke: #12151b;
+.zone {                      /* every zone circle */
+  stroke: #12151b;           /* dark outline */
   stroke-width: 2;
 }
-.zone--start,
+.zone--start,                /* comma = apply this block to BOTH selectors */
 .zone--end {
-  stroke: #ffffff;
+  stroke: #ffffff;           /* white outline marks the start + end zones */
   stroke-width: 3;
 }
-.zone--over-capacity {
-  stroke: #ff4d4d;
+.zone--over-capacity {       /* JS toggles this class when a zone exceeds max_drones */
+  stroke: #ff4d4d;           /* red outline = over capacity */
   stroke-width: 3;
 }
-.zone-label {
+.zone-label {                /* zone name + occupancy text */
   fill: #e6e6e6;
   font-size: 12px;
-  text-anchor: middle;
-  paint-order: stroke;
-  stroke: #12151b;
-  stroke-width: 3px;
+  text-anchor: middle;       /* SVG: center text on its x coordinate (like text-align) */
+  paint-order: stroke;       /* draw the stroke BEHIND the fill... */
+  stroke: #12151b;           /* ...a dark halo... */
+  stroke-width: 3px;         /* ...so labels stay readable over any circle color */
 }
 /* --- drones ---------------------------------------------------------- */
-.drone {
-  fill: #ffd24d;
+.drone {                     /* the drone GROUP (<g>): a circle + its id label */
+  transition: transform 0.3s ease;  /* move the whole group over 0.3s -> drones glide */
+}
+.drone circle {              /* SPACE = the <circle> inside a .drone group */
+  fill: #ffd24d;             /* yellow dot */
   stroke: #12151b;
   stroke-width: 1;
-  transition: cx 0.3s ease, cy 0.3s ease;
+}
+.drone-label {               /* the "D1" id printed inside the dot */
+  fill: #12151b;             /* dark text on the yellow circle */
+  font-size: 10px;
+  font-weight: 700;          /* bold so small ids stay legible */
+  text-anchor: middle;       /* center horizontally on the group's origin */
+  dominant-baseline: central;/* center vertically on it too */
+  pointer-events: none;      /* let clicks pass through the label */
 }
 
 /* --- controls -------------------------------------------------------- */
 #controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: flex;             /* buttons + slider laid out in a row */
+  align-items: center;       /* vertically center the controls */
+  gap: 10px;                 /* 10px between each control (no manual margins) */
   margin: 14px 0 24px;
 }
-#controls button {
-  padding: 6px 12px;
+#controls button {           /* SPACE = descendant: any <button> INSIDE #controls */
+  padding: 6px 12px;         /* inner space: 6 top/bottom | 12 left/right */
   background: #2c313c;
   color: #e6e6e6;
   border: 1px solid #3a4150;
   border-radius: 6px;
-  cursor: pointer;
+  cursor: pointer;           /* show the hand cursor on hover */
 }
-#controls button:hover {
-  background: #3a4150;
+#controls button:hover {     /* :hover = pseudo-class, active while the mouse is over it */
+  background: #3a4150;        /* lighten on hover -> visual feedback */
 }
 #scrub {
-  width: 240px;
+  width: 240px;              /* the range slider, fixed width */
 }
 #turn-label {
   color: #9aa4b2;
   font-size: 0.9rem;
-  min-width: 90px;
+  min-width: 90px;           /* reserve width so the text doesn't jump as the number changes */
 }
