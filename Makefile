@@ -22,7 +22,7 @@ $(VENV)/.installed: requirements.txt
 	touch $(VENV)/.installed
 
 run:  ## Parse+validate a map: make run MAP=<path>
-	$(PY) main.py $(MAP) > result.txt
+	$(PY) main.py $(MAP) > "$(MAP)_result".txt
 
 debug:  ## Same as run with verbose dump
 	$(PY) main.py $(MAP) --debug
