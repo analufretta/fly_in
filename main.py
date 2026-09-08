@@ -34,7 +34,7 @@ def main(argv: list[str]) -> int:
     debug = "--debug" in args
     paths = [a for a in args if a != "--debug"]
     if len(paths) != 1:
-        print("usage: python main.py <map_file> [--debug]", file=sys.stderr)
+        print("[ERROR] usage: python main.py <map_file> [--debug]", file=sys.stderr)
         return 1
     try:
         drone_map = MapParser().parse(paths[0])

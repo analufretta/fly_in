@@ -76,34 +76,34 @@ for (const z of DATA.zones) {
   zoneMeta[z.name] = z;
 }
 
+// Example : <line x1=... y1=... x2=... y2=... class="edge" />
 for (const e of DATA.edges) {
   const a = zonePos[e.a];
   const b = zonePos[e.b];
-  // Example : <line x1=... y1=... x2=... y2=... class="edge" />
   stage.appendChild(svgEl("line", {
     x1: a.px, y1: a.py, x2: b.px, y2: b.py, class: "edge",
   }));
   
+// Exmaple: <text x="240" y="266" class="edge-label" text-anchor="middle">3</text>
   const mid = { px: (a.px + b.px) / 2, py: (a.py + b.py) / 2 };
   const label = svgEl("text", {
     x: mid.px, y: mid.py - 4, class: "edge-label", "text-anchor": "middle",
   });
   label.textContent = String(e.capacity);
   stage.appendChild(label);
-  // Exmaple: <text x="240" y="266" class="edge-label" text-anchor="middle">3</text>
 }
 
+// Example: <circle cx=... cy=... class="zone zone--start" fill="red"/>
 for (const z of DATA.zones) {
   const p = zonePos[z.name];
   let cls = "zone";
-  if (z.is_start) cls += "zone--start";
-  else if (z.is_end) cls += "zone--end";
+  if (z.is_start) cls += " zone--start";
+  else if (z.is_end) cls += " zone--end";
   const circle = svgEl("circle", {
     cx: p.px, cy: p.py, r: NODE_R, class: cls, fill: z.color || "#b0b8c4",
   });
   stage.appendChild(circle);
   zoneCircle[z.name] = circle;
-  // Example: <circle cx=... cy=... class="zone zone--start" fill="red"/>
 
   const name = svgEl("text", {
     x: p.px, y: p.py - NODE_R - 6, class: "zone-label",
@@ -150,104 +150,101 @@ function positionFor(pos) {
 }
 
 /* Spread drones sharing one point around a small ring so they don't stack. */
-function fanOut(base, index, count) {
-  if (count <= 1) {
-    return base;
+function fanOut(pos, droneIndex, droneQty) {
+  if (droneQty <= 1) {
+    return pos;
   }
-  // Place drone #index evenly around a circle (2*PI radians = full turn).
-  const angle = (2 * Math.PI * index) / count;
+  // Place droneIndex evenly around a circle (2*PI radians = full turn).
+  const angle = (2 * Math.PI * droneIndex) / droneQty;
   const ring = NODE_R + DRONE_R;
   return {
-    px: base.px + Math.cos(angle) * ring,
-    py: base.py + Math.sin(angle) * ring,
+    px: pos.px + Math.cos(angle) * ring,
+    py: pos.py + Math.sin(angle) * ring,
   };
 }
 
 /* Draw one frame: move every drone, refresh occupancy + the turn labels. */
+// Where each drone is
 function renderTurn(t) {
-  const frame = DATA.turns[t];
-  const bases = frame.map(positionFor);
-  const groups = {};
-  bases.forEach((b, i) => {   // forEach gives (value, index)
-    const key = `${Math.round(b.px)},${Math.round(b.py)}`;   // "px,py" string key
-    // ||= : if groups[key] is missing, set it to []; then push i.
-    (groups[key] ||= []).push(i);
-  });
+  const turn = DATA.turns[t];
+  const bases = turn.map(positionFor);
+  const posGroup = {};
+  for (let i = 0; i < bases.length; i++) {
+    const b = bases[i];
+    const key = `${Math.round(b.px)},${Math.round(b.py)}`;
+    (posGroup[key] ||= []).push(i);
+}
 
-  frame.forEach((pos, i) => {
-    const key = `${Math.round(bases[i].px)},${Math.round(bases[i].py)}`;
-    const members = groups[key];   // all drone indices sharing this pixel
-    // members.indexOf(i) = this drone's slot within the shared group.
-    const target = fanOut(bases[i], members.indexOf(i), members.length);
-    // Move the whole group; CSS transitions the transform -> it glides.
-    droneEls[i].setAttribute("transform", `translate(${target.px} ${target.py})`);
-  });
-
+// How to draw them on map
+for (let i = 0; i < turn.length; i++) {
+  const base = bases[i];
+  const key = `${Math.round(base.px)},${Math.round(base.py)}`;
+  const members = posGroup[key];
+  const drone = members.indexOf(i);
+  const target = fanOut(base, drone, members.length);
+  droneEls[i].setAttribute("transform", `translate(${target.px} ${target.py})`);
+}
   // Occupancy per zone (in-flight drones count for neither endpoint).
   const occ = {};
-  for (const pos of frame) {
+  for (const pos of turn) {
     if (pos.kind === "zone") {
-      occ[pos.zone] = (occ[pos.zone] || 0) + 1;   // tally per zone name
+      occ[pos.zone] = (occ[pos.zone] || 0) + 1;
     }
   }
   for (const z of DATA.zones) {
     const count = occ[z.name] || 0;
-    const unlimited = z.is_start || z.is_end;   // start/end have no cap
-    // Unlimited zones show a plain count; capped zones show count/max.
+    const unlimited = z.is_start || z.is_end;
     zoneOcc[z.name].textContent =
       unlimited ? String(count) : `${count}/${z.max_drones}`;
     const over = !unlimited && count > z.max_drones;
-    // classList.toggle(name, cond): add the class if cond is true, else remove.
     zoneCircle[z.name].classList.toggle("zone--over-capacity", over);
   }
 
-  currentTurn = t;   // remember where we are (used by play/step)
-  document.getElementById("scrub").value = String(t);   // sync the slider
+  currentTurn = t;
+  document.getElementById("scrub").value = String(t);
   document.getElementById("turn-label").textContent = `turn ${t} / ${nbTurns}`;
 }
 
 // ------------------------------------------------------------------ //
 // 5. Animation loop + controls                                        //
 // ------------------------------------------------------------------ //
-const STEP_MS = 700;     // time each turn is shown while playing (ms)
-let currentTurn = 0;     // let, not const: it changes as we step
-let timer = null;        // holds the setInterval id while playing, else null
+const STEP_MS = 700;
+let currentTurn = 0;
+let timer = null;
 
 const playBtn = document.getElementById("play");
 const scrub = document.getElementById("scrub");
-scrub.max = String(nbTurns);   // slider's right end = last turn
+scrub.max = String(nbTurns);
 
 /** Clamp to [0, nbTurns] and draw. */
 function goTo(t) {
-  // Math.max(0, Math.min(nbTurns, t)) keeps t inside [0, nbTurns].
   renderTurn(Math.max(0, Math.min(nbTurns, t)));
 }
 
 function pause() {
-  if (timer !== null) {         // only if actually playing
-    clearInterval(timer);       // stop the repeating callback
-    timer = null;               // mark "not playing"
+  if (timer !== null) {
+    clearInterval(timer);
+    timer = null;
   }
   playBtn.textContent = "▶ Play";
 }
 
 function play() {
   if (currentTurn >= nbTurns) {
-    goTo(0);  // restart from the beginning if parked at the end
+    goTo(0);
   }
   playBtn.textContent = "⏸ Pause";
-  // setInterval runs the callback every STEP_MS ms; returns an id to cancel.
   timer = setInterval(() => {
     if (currentTurn >= nbTurns) {
-      pause();      // reached the end -> stop the loop
-      return;
+      pause();
+      return null;
     }
-    goTo(currentTurn + 1);   // advance one turn
+    goTo(currentTurn + 1);
   }, STEP_MS);
 }
 
 function togglePlay() {
-  if (timer === null) {   // null means paused -> start
+  if (timer === null) {
     play();
   } else {
     pause();
@@ -257,7 +254,7 @@ function togglePlay() {
 // addEventListener("click", fn): run fn whenever the element is clicked.
 playBtn.addEventListener("click", togglePlay);
 document.getElementById("back").addEventListener("click", () => {
-  pause();               // stepping manually stops autoplay
+  pause();
   goTo(currentTurn - 1);
 });
 document.getElementById("fwd").addEventListener("click", () => {
@@ -270,4 +267,4 @@ scrub.addEventListener("input", () => {
   goTo(Number(scrub.value));   // slider value is a string -> Number()
 });
 
-goTo(0);  // initial frame: all drones at the start hub
+goTo(0);
