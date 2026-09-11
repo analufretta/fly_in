@@ -288,7 +288,13 @@ re-deriving the schedule, so the animation and the log can never disagree.
 
 ## Resources
 
-- 42 `lem-in` / network-flow background (single-commodity max-flow, min-cost max-flow, successive shortest paths).
-- Johnson potentials for running Dijkstra on graphs with negative residual back-edges.
+- Graph Representation: https://www.youtube.com/watch?v=F2r9ySIzsS8
+- Dijksra Algorithm: https://www.youtube.com/watch?v=EFg3u_E6eHU
+- Netwrok Flow: https://www.youtube.com/playlist?list=PLDV1Zeh2NRsDj3NzHbbFIC58etjZhiGcG
+- Bellman Ford Algorithm: https://www.youtube.com/watch?v=lyw4FaxrwHg
+- Johnson's Algorithm: https://www.youtube.com/watch?v=MV7EAD9zL64
+- SVG: https://www.youtube.com/watch?v=emFMHH2Bfvo
+- JavaScript: https://www.w3schools.com/js/js_intro.asp, https://www.youtube.com/watch?v=c-I5S_zTwAc, https://www.youtube.com/watch?v=lkIFF4maKMU
+
 
 **How AI was used:** used as a reasoning partner to frame the problem as single-commodity flow (rather than MAPF), to compare the two candidate algorithms (unit max-flow vs. min-cost max-flow), and to weigh their scaling behaviour before committing to min-cost max-flow. All final algorithm choices, code, and implementation are the author's own.
