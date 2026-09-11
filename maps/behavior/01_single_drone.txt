@@ -1,0 +1,12 @@
+# Behavior: one drone, straight line (minimum viable map).
+# Expect: solves. Makespan == path length (3 turns), one D1 token per line.
+nb_drones: 1
+
+start_hub: start 0 0 [color=green]
+hub: a 1 0 [color=blue]
+hub: b 2 0 [color=blue]
+end_hub: goal 3 0 [color=red]
+
+connection: start-a
+connection: a-b
+connection: b-goal

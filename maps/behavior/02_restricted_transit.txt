@@ -1,0 +1,11 @@
+# Behavior: only route runs through a restricted zone (2-turn transit).
+# Expect: solves. Output shows the in-flight token D1-start-r, then D1-r, then
+# D1-goal -- exercises the D<id>-<src>-<dst> path.
+nb_drones: 1
+
+start_hub: start 0 0 [color=green]
+hub: r 1 0 [zone=restricted color=orange]
+end_hub: goal 2 0 [color=red]
+
+connection: start-r
+connection: r-goal

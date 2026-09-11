@@ -1,0 +1,21 @@
+# Behavior: one drone down a long chain of zones. Expect: solves with makespan
+# == chain length (7 turns), a single D1 token per line. Stresses path length /
+# playback cursor over many hops.
+nb_drones: 1
+
+start_hub: start 0 0 [color=green]
+hub: z1 1 0 [color=blue]
+hub: z2 2 0 [color=blue]
+hub: z3 3 0 [color=blue]
+hub: z4 4 0 [color=blue]
+hub: z5 5 0 [color=blue]
+hub: z6 6 0 [color=blue]
+end_hub: goal 7 0 [color=red]
+
+connection: start-z1
+connection: z1-z2
+connection: z2-z3
+connection: z3-z4
+connection: z4-z5
+connection: z5-z6
+connection: z6-goal

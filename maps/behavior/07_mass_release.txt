@@ -1,0 +1,9 @@
+# Behavior: many drones, direct start->goal link wide enough for all of them.
+# Tests that start/end have unlimited occupancy (max_drones ignored there) and
+# the link cap governs throughput. Expect: all 6 cross together, makespan 1.
+nb_drones: 6
+
+start_hub: start 0 0 [color=green]
+end_hub: goal 1 0 [color=red]
+
+connection: start-goal [max_link_capacity=6]

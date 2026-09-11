@@ -1,0 +1,21 @@
+# Boundary: comments and blank lines interleaved everywhere. The parser must
+# skip them and read the real content unaffected. Expect: solves.
+
+# ---- drone count ----
+nb_drones: 2
+
+
+# ---- zones ----
+start_hub: start 0 0 [color=green]
+
+hub: a 1 0 [color=blue]
+# a mid waypoint
+
+end_hub: goal 2 0 [color=red]
+
+
+# ---- links ----
+connection: start-a
+
+connection: a-goal
+# end of file

@@ -1,0 +1,11 @@
+# Behavior: 5 drones squeezed through a single-capacity neck. The neck zone
+# caps at 1 drone/turn and both links carry 1/turn -> releases must stagger one
+# turn apart. Expect: solves, makespan grows single-file, no cap exceeded.
+nb_drones: 5
+
+start_hub: start 0 0 [color=green]
+hub: neck 1 0 [color=orange max_drones=1]
+end_hub: goal 2 0 [color=red]
+
+connection: start-neck [max_link_capacity=1]
+connection: neck-goal [max_link_capacity=1]

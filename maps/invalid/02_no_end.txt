@@ -1,0 +1,7 @@
+# Invalid: no end_hub. Expect MapError "map has no end zone", exit 1.
+nb_drones: 2
+
+start_hub: start 0 0 [color=green]
+hub: a 1 0 [color=blue]
+
+connection: start-a

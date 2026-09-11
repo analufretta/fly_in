@@ -1,0 +1,11 @@
+# Behavior: a neck zone with max_drones=2 and links carrying 2/turn. Expect:
+# solves letting exactly 2 drones through per turn (not 1, not unlimited) --
+# verifies zone capacity is honored as an upper bound, not a hard single-file.
+nb_drones: 4
+
+start_hub: start 0 0 [color=green]
+hub: neck 1 0 [color=orange max_drones=2]
+end_hub: goal 2 0 [color=red]
+
+connection: start-neck [max_link_capacity=2]
+connection: neck-goal [max_link_capacity=2]

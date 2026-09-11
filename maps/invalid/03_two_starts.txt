@@ -1,0 +1,8 @@
+# Invalid: two start_hub lines. Expect MapError "more than one start point".
+nb_drones: 1
+
+start_hub: start1 0 0 [color=green]
+start_hub: start2 0 1 [color=green]
+end_hub: goal 1 0 [color=red]
+
+connection: start1-goal

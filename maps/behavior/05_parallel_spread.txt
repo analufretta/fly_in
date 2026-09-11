@@ -1,0 +1,17 @@
+# Behavior: 3 disjoint parallel lanes, 3 drones. Expect: solves and the flow
+# spreads one drone per lane, so makespan == a single lane's length (2 turns),
+# NOT 3x. Guards against accidental single-file routing.
+nb_drones: 3
+
+start_hub: start 0 0 [color=green]
+hub: a 1 1 [color=blue]
+hub: b 1 0 [color=blue]
+hub: c 1 -1 [color=blue]
+end_hub: goal 2 0 [color=red]
+
+connection: start-a
+connection: start-b
+connection: start-c
+connection: a-goal
+connection: b-goal
+connection: c-goal

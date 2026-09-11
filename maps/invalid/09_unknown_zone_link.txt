@@ -1,0 +1,8 @@
+# Invalid: connection references a zone that was never defined.
+# Expect MapError "connection references unknown zone 'ghost'".
+nb_drones: 1
+
+start_hub: start 0 0 [color=green]
+end_hub: goal 1 0 [color=red]
+
+connection: start-ghost

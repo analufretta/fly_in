@@ -1,0 +1,11 @@
+# Boundary: metadata keys given in a non-standard order and mixed across zones.
+# Metadata is order-independent, so this must parse and solve identically to the
+# canonical ordering. Expect: solves.
+nb_drones: 2
+
+start_hub: start 0 0 [color=green]
+hub: mid 1 0 [max_drones=2 color=purple zone=normal]
+end_hub: goal 2 0 [color=red]
+
+connection: start-mid [max_link_capacity=2]
+connection: mid-goal [max_link_capacity=2]

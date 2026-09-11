@@ -1,0 +1,9 @@
+# Behavior: start is directly connected to end (degenerate shortest map).
+# Expect: solves with makespan 1 -- one turn, every drone that fits the link
+# lands on goal. Link capacity 3 lets all 3 cross at once.
+nb_drones: 3
+
+start_hub: start 0 0 [color=green]
+end_hub: goal 1 0 [color=red]
+
+connection: start-goal [max_link_capacity=3]

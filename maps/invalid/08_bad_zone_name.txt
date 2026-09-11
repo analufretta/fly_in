@@ -1,0 +1,9 @@
+# Invalid: zone name contains a dash (names must have no dash/whitespace).
+# Expect MapError (invalid zone name / bad zone line), exit 1.
+nb_drones: 1
+
+start_hub: start 0 0 [color=green]
+hub: bad-name 1 0 [color=blue]
+end_hub: goal 2 0 [color=red]
+
+connection: start-goal

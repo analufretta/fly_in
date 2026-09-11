@@ -1,0 +1,11 @@
+# Invalid: a connection whose two endpoints are the same zone.
+# Expect MapError "self-loop connection: 'a'", exit 1.
+nb_drones: 1
+
+start_hub: start 0 0 [color=green]
+hub: a 1 0 [color=blue]
+end_hub: goal 2 0 [color=red]
+
+connection: start-a
+connection: a-a
+connection: a-goal

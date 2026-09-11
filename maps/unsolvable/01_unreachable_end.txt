@@ -1,0 +1,10 @@
+# Unsolvable (valid syntax): the end zone has no connection, so no start->end
+# route exists. Reachability is a solver concern, not a parse rule.
+# Expect: parses OK, then SolveError (zero flow), exit 1.
+nb_drones: 1
+
+start_hub: start 0 0 [color=green]
+hub: island 1 0 [color=blue]
+end_hub: goal 5 5 [color=red]
+
+connection: start-island

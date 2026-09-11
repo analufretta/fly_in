@@ -22,7 +22,7 @@ env/
 # Generated visualizer output (keep the template)
 /*.html
 !viz_template.html
-result.txt
+result_*.txt
 
 # Type / lint / test caches
 .mypy_cache/
@@ -30,4 +30,3 @@ result.txt
 .ruff_cache/
 .coverage
 htmlcov/
-test/

@@ -1,0 +1,14 @@
+# Behavior: two equal-length routes for one drone -- one via a priority zone
+# (cheaper cost), one via a normal zone. Expect: solves and the cost tie-break
+# routes the drone through the priority zone 'p', never the normal zone 'n'.
+nb_drones: 1
+
+start_hub: start 0 0 [color=green]
+hub: p 1 1 [zone=priority color=green]
+hub: n 1 -1 [color=blue]
+end_hub: goal 2 0 [color=red]
+
+connection: start-p
+connection: p-goal
+connection: start-n
+connection: n-goal

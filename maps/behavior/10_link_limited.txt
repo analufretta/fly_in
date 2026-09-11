@@ -1,0 +1,11 @@
+# Behavior: the neck zone is roomy (max_drones=5) but the outgoing link caps at
+# 1/turn, so throughput is governed by the LINK, not the zone. Expect: solves
+# single-file despite the wide zone -- separates link vs zone capacity.
+nb_drones: 4
+
+start_hub: start 0 0 [color=green]
+hub: neck 1 0 [color=orange max_drones=5]
+end_hub: goal 2 0 [color=red]
+
+connection: start-neck [max_link_capacity=5]
+connection: neck-goal [max_link_capacity=1]

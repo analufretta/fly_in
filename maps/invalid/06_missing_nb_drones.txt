@@ -1,0 +1,4 @@
+# Invalid: a file with no nb_drones line and no content at all (only comments).
+# Expect MapError "missing nb_drones", exit 1.
+# (A zone before nb_drones would instead trip "content before nb_drones" --
+#  see 07_content_before_nb_drones.txt.)

@@ -1,0 +1,14 @@
+# Behavior: 4 drones, two single-capacity lanes (a and b). Neither lane alone
+# can carry all four, so the flow MUST split across both and stagger within
+# each. Expect: solves using both lanes, ~2 drones per lane.
+nb_drones: 4
+
+start_hub: start 0 0 [color=green]
+hub: a 1 1 [color=blue]
+hub: b 1 -1 [color=blue]
+end_hub: goal 2 0 [color=red]
+
+connection: start-a
+connection: a-goal
+connection: start-b
+connection: b-goal

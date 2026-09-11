@@ -36,19 +36,19 @@ $(VENV)/.installed: requirements.txt
 	@touch $(VENV)/.installed
 
 run: install  ## Solve a map, print run to stdout: make run MAP=<path>
-	@test -n "$(MAP)" || { echo "❌ Error! Usage: make run MAP=<path/to/map.txt>" >&2; exit 1; }
+	@test -n "$(MAP)" || { echo "❌ Usage: make run MAP=<path/to/map.txt>" >&2; exit 1; }
 	@$(PY) main.py "$(MAP)"
 
-debug: install  ## Same as run with verbose dump to stderr
-	@test -n "$(MAP)" || { echo "❌ Error! Usage: make debug MAP=<path/to/map.txt>" >&2; exit 1; }
-	@$(PY) main.py "$(MAP)" --debug
+debug: install  ## Run the main script under Python's debugger (pdb)
+	@test -n "$(MAP)" || { echo "❌ Usage: make debug MAP=<path/to/map.txt>" >&2; exit 1; }
+	$(PY) -m pdb main.py "$(MAP)"
 
 lint: install
-	$(FLAKE8) .
-	$(MYPY) . $(MYPY_FLAGS)
+	$(FLAKE8) ./*.py
+	$(MYPY) ./*.py $(MYPY_FLAGS)
 
 lint-strict: install
-	$(MYPY) . $(MYPY_STRICT_FLAGS)
+	$(MYPY) ./*.py $(MYPY_STRICT_FLAGS)
 
 test: install  ## Run the unit tests
 	$(PYTEST) -q
@@ -58,9 +58,9 @@ clean:
 	find . -type d -name '__pycache__' -prune -exec rm -rf {} +
 	find . -type f -name '*.pyc' -delete
 	find . -maxdepth 1 -type f -name '*.html' ! -name 'viz_template.html' -delete
-	rm -f result.txt
+	rm -f result_*.txt
 
-fclean: clean  ## clean + remove the virtualenv
+fclean: clean
 	rm -rf $(VENV)
 
 re: fclean install  ## Full rebuild

@@ -100,7 +100,7 @@ The scheduler answers *where and when* each drone goes; `Drone` and `Simulation`
 
 ### Output format
 
-One line per simulation turn, printed to `stdout`. Each line is the space-separated set of moves made **that** turn; a drone that does not move is omitted from the line entirely. A move is one of:
+One line per simulation turn, written to `result_<map_name>.txt` (e.g. `result_01_linear_path.txt`). Each line is the space-separated set of moves made **that** turn; a drone that does not move is omitted from the line entirely. A move is one of:
 
 - `D<ID>-<zone>` — drone `<ID>` arrived in `<zone>` this turn.
 - `D<ID>-<src>-<dst>` — drone `<ID>` is in flight along the connection toward the restricted zone `<dst>` (the two-turn transit, turn 1 of 2).
@@ -113,7 +113,7 @@ D1-R
 D1-E
 ```
 
-Diagnostics (`--debug`: the parsed-map summary and adjacency) go to `stderr`, keeping `stdout` a clean, gradable move log.
+The move log itself is the sole content of `result_<map_name>.txt`, kept clean and gradable. Human-facing feedback — a yellow `RUNNING FLY_IN...` header, a one-line run summary (`drones / zones / links / turns`), and green ✅ / red ❌ status — goes to `stderr`, so it never pollutes the result file.
 
 ---
 
@@ -166,26 +166,55 @@ A name-shape rule (no dash/whitespace) has a single owner, `Zone.is_valid_name`,
 ## Instructions
 
 ```sh
+make                                          # default target: list all targets (help)
 make install                                  # create .venv + install flake8/mypy/pytest
-make run MAP=maps/easy/01_linear_path.txt     # schedule the fleet + print the per-turn log (MAP defaults to this)
-make debug MAP=<path>                          # same, plus map summary + adjacency on stderr
+make run MAP=maps/easy/01_linear_path.txt     # schedule the fleet; write result_<map>.txt + <map>.html
+make debug MAP=<path>                          # run under Python's built-in debugger (pdb)
 make lint                                      # flake8 + mypy (subject flags)
 make lint-strict                               # mypy --strict
-make test                                      # run the unit test suite (none yet — added in Phase 6)
-make clean                                     # remove caches / bytecode (fclean also drops .venv)
+make test                                      # run the unit test suite (test/)
+make clean                                     # remove caches, bytecode, generated result_*.txt / *.html
+make fclean                                    # clean + drop the .venv
+make re                                        # fclean + install (full rebuild)
 ```
 
-Runtime has **zero** third-party dependencies (graph and parser are hand-rolled); `make install` only fetches the lint/test tooling.
+`MAP` is **required** for `run` / `debug` — there is no default; omitting it prints a usage error.
 
-Every successful `make run` also writes `<mapname>.html` (e.g. `01_linear_path.html`) — the animated visualiser (see [Visual representation](#visual-representation)). Open it in any browser; the move log still goes to `stdout` untouched.
+`make install` builds the virtualenv with the **first Python ≥ 3.10** found on your `PATH` (it probes `python3.13 … python3.10 python3`), so a system `python3` older than 3.10 is skipped automatically. Runtime has **zero** third-party dependencies (graph and parser are hand-rolled); `make install` only fetches the lint/test tooling.
+
+Every successful `make run` writes two files next to where you run it: the move log `result_<map_name>.txt` (see [Output format](#output-format)) and the animated visualiser `<map_name>.html` (e.g. `01_linear_path.html`, see [Visual representation](#visual-representation)). Open the HTML in any browser.
+
+### Debugging with pdb
+
+`make debug MAP=<path>` launches the run under Python's built-in debugger, equivalent to:
+
+```sh
+python -m pdb main.py <path>
+```
+
+It stops at the first statement with a `(Pdb)` prompt. Common commands:
+
+| Command | Action |
+|---|---|
+| `n` (next) | run the current line, step **over** calls |
+| `s` (step) | step **into** the call on the current line |
+| `c` (continue) | run until the next breakpoint (or program end) |
+| `b <file:line>` / `b <func>` | set a breakpoint (e.g. `b scheduler.py:70`) |
+| `l` (list) | show source around the current line |
+| `p <expr>` / `pp <expr>` | print / pretty-print an expression |
+| `w` (where) | show the call stack |
+| `r` (return) | run until the current function returns |
+| `q` (quit) | abort the debugger and the program |
+
+Running to completion under pdb (`c`) still produces `result_<map_name>.txt` and `<map_name>.html` exactly as a normal `make run`.
 
 ### Error reporting
 
-Any malformed map **stops the program** with a single clear message on `stderr` and a non-zero exit code (`1`) — never a raw traceback. Line-specific problems name the offending 1-based line and the cause; whole-map problems (e.g. a missing `nb_drones`, or no start/end zone) omit the line:
+Any malformed map **stops the program** with a single clear message on `stderr` (red, prefixed with ❌ on a terminal) and a non-zero exit code (`1`) — never a raw traceback. Line-specific problems name the offending 1-based line and the cause; whole-map problems (e.g. a missing `nb_drones`, or no start/end zone) omit the line:
 
 ```text
-[ERROR] line 7: invalid zone name: 'a b'
-[ERROR] map has no start zone
+❌ [ERROR] line 7: invalid zone name: 'a b'
+❌ [ERROR] map has no start zone
 ```
 
 This satisfies the subject's rule that a parsing error must halt and report the line and cause.
@@ -251,9 +280,9 @@ and drones land off their zones. So Python ships only the **raw map data** (grid
 coordinates, capacities, colours, and the turn-by-turn zone/edge *names*), and
 JS is the **single source of truth** for pixels.
 
-**Why it can't lie.** The per-turn positions are parsed straight from the same
-`stdout` move log the grader reads — the visualizer replays the tokens rather
-than re-deriving the schedule, so the animation and the log can never disagree.
+**Why it can't lie.** The per-turn positions are the same move-log lines written
+to `result_<map_name>.txt` — the visualizer replays those tokens rather than
+re-deriving the schedule, so the animation and the log can never disagree.
 
 ---
 

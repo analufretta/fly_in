@@ -1,0 +1,10 @@
+# Invalid: an unknown metadata key (only zone/color/max_drones/
+# max_link_capacity are allowed). Expect MapError, exit 1.
+nb_drones: 1
+
+start_hub: start 0 0 [color=green]
+hub: a 1 0 [foo=bar]
+end_hub: goal 2 0 [color=red]
+
+connection: start-a
+connection: a-goal

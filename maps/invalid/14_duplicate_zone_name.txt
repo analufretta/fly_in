@@ -1,0 +1,11 @@
+# Invalid: two zones sharing the same name. Expect MapError "duplicated zone
+# name", exit 1.
+nb_drones: 1
+
+start_hub: start 0 0 [color=green]
+hub: dup 1 0 [color=blue]
+hub: dup 2 0 [color=blue]
+end_hub: goal 3 0 [color=red]
+
+connection: start-dup
+connection: dup-goal
