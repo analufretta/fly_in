@@ -181,7 +181,7 @@ class MinCostMaxFlow:
         """Register a node name so edges can attach to it.
 
         Args:
-            node: The node name (``_arrival``/``_departure`` of some zone).
+            node: The node name (``_in``/``_out`` of some zone).
             zone_name: The zone this node is a half of (for the reverse map).
         """
         self._links[node] = []

@@ -60,17 +60,16 @@ def main(argv: list[str]) -> int:
         ``SolveError``, bad usage, or an output-file write failure.
     """
     args = argv[1:]
-    paths = [a for a in args if a != "--debug"]
     print((_paint("\nRUNNING FLY_IN...\n", _YELLOW)), file=sys.stderr)
-    if len(paths) != 1:
+    if len(args) != 1:
         print(err("usage: python main.py <map_file>"),
               file=sys.stderr)
         return 1
-    base = os.path.splitext(os.path.basename(paths[0]))[0]
+    base = os.path.splitext(os.path.basename(args[0]))[0]
     resultfile = f"result_{base}.txt"
     htmlfile = f"{base}.html"
     try:
-        drone_map = MapParser().parse(paths[0])
+        drone_map = MapParser().parse(args[0])
         drones_path = Scheduler(drone_map).solve()
         lines = Simulation(drone_map, drones_path).run()
         Visualizer(drone_map, lines).render(htmlfile)

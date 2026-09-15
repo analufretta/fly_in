@@ -1,0 +1,12 @@
+# eval trace map: max flow = 2 (Start has two outgoing links)
+# routes: Start-A-End, Start-B-End, Start-A-B-End
+nb_drones: 3
+start_hub: Start 0 0
+end_hub: End 4 0
+hub: A 2 1
+hub: B 2 -1
+connection: Start-A
+connection: A-End
+connection: Start-B
+connection: B-End
+connection: A-B
